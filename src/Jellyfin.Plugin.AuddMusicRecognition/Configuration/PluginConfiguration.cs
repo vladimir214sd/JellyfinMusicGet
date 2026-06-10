@@ -41,4 +41,9 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether the player overlay is injected into Jellyfin Web.
     /// </summary>
     public bool EnableWebOverlay { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the player overlay shows sent clip diagnostics.
+    /// </summary>
+    public bool ShowOverlayDebugInfo { get; set; }
 }
