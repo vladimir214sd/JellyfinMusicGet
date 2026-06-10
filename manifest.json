@@ -8,6 +8,14 @@
     "category": "Music",
     "versions": [
       {
+        "version": "1.0.0.9",
+        "changelog": "Retry FFmpeg audio extraction with alternate stream mappings and include attempted commands/stderr in extraction errors.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/vladimir214sd/JellyfinMusicGet/releases/download/v1.0.0.9/audd-music-recognition_1.0.0.9.zip",
+        "checksum": "4f1734989fac29cf69d63c54e339201f",
+        "timestamp": "2026-06-10T10:14:20Z"
+      },
+      {
         "version": "1.0.0.8",
         "changelog": "Fix sticky overlay button with request timeout, improve current position detection, stop caching no-match responses, and add optional sent clip diagnostics.",
         "targetAbi": "10.11.0.0",
