@@ -1,0 +1,94 @@
+name: Release Jellyfin Plugin
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Four-part plugin version, for example 1.0.0.0
+        required: true
+        default: 1.0.0.0
+      targetAbi:
+        description: Jellyfin target ABI
+        required: true
+        default: 10.11.0.0
+      changelog:
+        description: Release changelog
+        required: false
+        default: Initial release.
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore tests/Jellyfin.Plugin.AuddMusicRecognition.Tests/Jellyfin.Plugin.AuddMusicRecognition.Tests.csproj
+
+      - name: Test
+        run: dotnet test tests/Jellyfin.Plugin.AuddMusicRecognition.Tests/Jellyfin.Plugin.AuddMusicRecognition.Tests.csproj --configuration Release --no-restore
+
+      - name: Publish
+        run: >
+          dotnet publish src/Jellyfin.Plugin.AuddMusicRecognition/Jellyfin.Plugin.AuddMusicRecognition.csproj
+          --configuration Release
+          --output artifacts/publish
+          -p:Version=${{ inputs.version }}
+          -p:AssemblyVersion=${{ inputs.version }}
+          -p:FileVersion=${{ inputs.version }}
+          -p:InformationalVersion=${{ inputs.version }}
+
+      - name: Package and update manifest
+        id: package
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          $assetName = "audd-music-recognition_$version.zip"
+          $assetPath = Join-Path "artifacts" $assetName
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Compress-Archive -Path "artifacts/publish/*" -DestinationPath $assetPath -Force
+          $checksum = (Get-FileHash -Path $assetPath -Algorithm MD5).Hash.ToLowerInvariant()
+          $sourceUrl = "https://github.com/${{ github.repository }}/releases/download/v$version/$assetName"
+          ./scripts/update-manifest.ps1 `
+            -Version $version `
+            -TargetAbi "${{ inputs.targetAbi }}" `
+            -SourceUrl $sourceUrl `
+            -Checksum $checksum `
+            -Changelog "${{ inputs.changelog }}"
+          "asset_name=$assetName" >> $env:GITHUB_OUTPUT
+          "asset_path=$assetPath" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Create or update GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.package.outputs.tag }}" >/dev/null 2>&1; then
+            gh release upload "${{ steps.package.outputs.tag }}" "${{ steps.package.outputs.asset_path }}" manifest.json --clobber
+          else
+            gh release create "${{ steps.package.outputs.tag }}" "${{ steps.package.outputs.asset_path }}" manifest.json \
+              --title "AudD Music Recognition ${{ inputs.version }}" \
+              --notes "${{ inputs.changelog }}"
+          fi
+
+      - name: Commit updated manifest
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "Update Jellyfin plugin manifest for ${{ inputs.version }}" || exit 0
+          git push
