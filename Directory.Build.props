@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <JellyfinVersion>10.11.3</JellyfinVersion>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+</Project>
