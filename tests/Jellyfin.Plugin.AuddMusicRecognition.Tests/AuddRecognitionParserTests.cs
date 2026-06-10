@@ -22,6 +22,12 @@ public sealed class AuddRecognitionParserTests
                 "spotify": {
                   "external_urls": {
                     "spotify": "https://open.spotify.com/track/example"
+                  },
+                  "album": {
+                    "images": [
+                      { "url": "https://i.scdn.co/image/cover-large" },
+                      { "url": "https://i.scdn.co/image/cover-small" }
+                    ]
                   }
                 },
                 "apple_music": {
@@ -41,6 +47,7 @@ public sealed class AuddRecognitionParserTests
         Assert.Equal("https://lis.tn/Angel", response.SongLink);
         Assert.Equal("https://open.spotify.com/track/example", response.SpotifyUrl);
         Assert.Equal("https://music.apple.com/example", response.AppleMusicUrl);
+        Assert.Equal("https://i.scdn.co/image/cover-large", response.AlbumArtUrl);
     }
 
     [Fact]
