@@ -70,6 +70,12 @@ public sealed class RecognitionService : IRecognitionService
         var sourcePath = await ResolveLocalMediaPathAsync(item, request, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(sourcePath))
         {
+            _logger.LogWarning(
+                "Music recognition path resolution failed for provider {RecognitionProvider}. Item {ItemId}, media source {MediaSourceId}, request media source path supplied {HasMediaSourcePath}",
+                GetRecognitionProviderName(configuration),
+                item.Id,
+                request.MediaSourceId,
+                !string.IsNullOrWhiteSpace(request.MediaSourcePath));
             return RecognitionResponse.Error("Only local filesystem media can be recognized in v1. No readable local file path was found for the item or selected media source.");
         }
 
@@ -121,7 +127,11 @@ public sealed class RecognitionService : IRecognitionService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Music recognition failed for item {ItemId}", item.Id);
+            _logger.LogError(
+                ex,
+                "Music recognition failed for item {ItemId} with provider {RecognitionProvider}",
+                item.Id,
+                GetRecognitionProviderName(configuration));
             return RecognitionResponse.Error(ex.Message);
         }
     }
