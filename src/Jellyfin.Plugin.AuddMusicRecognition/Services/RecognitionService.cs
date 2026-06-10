@@ -133,11 +133,11 @@ public sealed class RecognitionService : IRecognitionService
 
         AddMediaSourceCandidates(candidates, GetStaticMediaSources(item));
 
-        if (!string.IsNullOrWhiteSpace(mediaSourceId))
+        foreach (var lookupMediaSourceId in GetMediaSourceLookupIds(item, mediaSourceId, candidates).ToList())
         {
             AddMediaSourceCandidate(
                 candidates,
-                await GetMediaSourceAsync(item, mediaSourceId, cancellationToken).ConfigureAwait(false));
+                await GetMediaSourceAsync(item, lookupMediaSourceId, cancellationToken).ConfigureAwait(false));
         }
 
         var selected = candidates
@@ -145,9 +145,22 @@ public sealed class RecognitionService : IRecognitionService
             .Select(candidate => candidate.Path)
             .FirstOrDefault(IsReadableLocalFile);
 
-        return selected ?? candidates
+        var sourcePath = selected ?? candidates
             .Select(candidate => candidate.Path)
             .FirstOrDefault(IsReadableLocalFile);
+
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            _logger.LogWarning(
+                "No readable local media path found for item {ItemId}. Item type: {ItemType}; item path: {ItemPath}; requested media source: {MediaSourceId}; candidates: {Candidates}",
+                item.Id,
+                item.GetType().FullName,
+                item.Path,
+                mediaSourceId,
+                string.Join("; ", candidates.Select(FormatCandidateForLog)));
+        }
+
+        return sourcePath;
     }
 
     private IReadOnlyList<MediaSourceInfo> GetStaticMediaSources(BaseItem item)
@@ -200,6 +213,24 @@ public sealed class RecognitionService : IRecognitionService
         {
             AddCandidate(candidates, mediaSource.Id, mediaSource.Path);
         }
+    }
+
+    private static IEnumerable<string> GetMediaSourceLookupIds(
+        BaseItem item,
+        string? requestedMediaSourceId,
+        IEnumerable<MediaPathCandidate> candidates)
+    {
+        var ids = new[]
+        {
+            requestedMediaSourceId,
+            item.Id.ToString("N"),
+            item.Id.ToString("D")
+        }.Concat(candidates.Select(candidate => candidate.MediaSourceId));
+
+        return ids
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id!)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
     private static IEnumerable<object> GetMediaSources(BaseItem item)
@@ -301,12 +332,26 @@ public sealed class RecognitionService : IRecognitionService
             return null;
         }
 
-        if (Uri.TryCreate(path, UriKind.Absolute, out var uri) && uri.IsFile)
+        var localPath = path.Trim().Trim('"', '\'');
+        if (localPath.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            var filePath = localPath.Substring("file:".Length).Trim().Trim('"', '\'');
+            if (filePath.StartsWith("//", StringComparison.Ordinal) || filePath.StartsWith(@"\\", StringComparison.Ordinal))
+            {
+                localPath = "file:" + filePath;
+            }
+            else if (!string.IsNullOrWhiteSpace(filePath))
+            {
+                localPath = filePath;
+            }
+        }
+
+        if (Uri.TryCreate(localPath, UriKind.Absolute, out var uri) && uri.IsFile)
         {
             return uri.LocalPath;
         }
 
-        return path;
+        return localPath;
     }
 
     private static string? GetStringProperty(object source, string propertyName)
@@ -327,6 +372,11 @@ public sealed class RecognitionService : IRecognitionService
     private static bool IsReadableLocalFile(string? path)
     {
         return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+    }
+
+    private static string FormatCandidateForLog(MediaPathCandidate candidate)
+    {
+        return $"source={candidate.MediaSourceId ?? "<none>"}, path={candidate.Path}, exists={File.Exists(candidate.Path)}";
     }
 
     private sealed record MediaPathCandidate(string? MediaSourceId, string Path);
