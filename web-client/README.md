@@ -18,6 +18,7 @@ It is injected into Jellyfin Web by `WebOverlayInjectionMiddleware` with a uniqu
 - Shows the overlay only while playback is paused, so it does not cover the video during viewing.
 - Sends `itemId`, `mediaSourceId`, optional `mediaSourcePath`, `positionTicks`, and `audioStreamIndex` to `POST /Plugins/AuddMusicRecognition/Recognize`.
 - Reads Jellyfin PlaybackInfo before recognition to recover missing media source ids and local paths.
+- Falls back to the active Jellyfin session when PlaybackInfo does not expose a readable local path.
 - Falls back to Jellyfin video/HLS URLs when the Jellyfin Web playback manager is not exposed as a window global.
 - When `ShowOverlayDebugInfo` is enabled in plugin settings, displays the extracted clip duration and uploaded file size next to the button.
 - Caches results in memory by item id and rounded 10-second playback position.
