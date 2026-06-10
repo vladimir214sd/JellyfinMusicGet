@@ -1,10 +1,16 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.AuddMusicRecognition.Configuration;
 using Jellyfin.Plugin.AuddMusicRecognition.Models;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Dto;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AuddMusicRecognition.Services;
@@ -16,6 +22,7 @@ public sealed class RecognitionService : IRecognitionService
 {
     private readonly IAudioClipExtractor _audioClipExtractor;
     private readonly IAuddClient _auddClient;
+    private readonly IMediaSourceManager _mediaSourceManager;
     private readonly ILogger<RecognitionService> _logger;
 
     /// <summary>
@@ -23,14 +30,17 @@ public sealed class RecognitionService : IRecognitionService
     /// </summary>
     /// <param name="audioClipExtractor">Audio clip extractor.</param>
     /// <param name="auddClient">AudD client.</param>
+    /// <param name="mediaSourceManager">Jellyfin media source manager.</param>
     /// <param name="logger">Logger.</param>
     public RecognitionService(
         IAudioClipExtractor audioClipExtractor,
         IAuddClient auddClient,
+        IMediaSourceManager mediaSourceManager,
         ILogger<RecognitionService> logger)
     {
         _audioClipExtractor = audioClipExtractor;
         _auddClient = auddClient;
+        _mediaSourceManager = mediaSourceManager;
         _logger = logger;
     }
 
@@ -46,9 +56,10 @@ public sealed class RecognitionService : IRecognitionService
             return RecognitionResponse.Error("AudD API token is not configured.");
         }
 
-        if (string.IsNullOrWhiteSpace(item.Path) || !File.Exists(item.Path))
+        var sourcePath = await ResolveLocalMediaPathAsync(item, request.MediaSourceId, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(sourcePath))
         {
-            return RecognitionResponse.Error("Only local filesystem media can be recognized in v1.");
+            return RecognitionResponse.Error("Only local filesystem media can be recognized in v1. No readable local file path was found for the item or selected media source.");
         }
 
         var clipWindow = ClipWindowCalculator.Calculate(
@@ -63,13 +74,13 @@ public sealed class RecognitionService : IRecognitionService
             _logger.LogInformation(
                 "Extracting AudD clip for item {ItemId} from {SourcePath} at {StartSeconds}s for {DurationSeconds}s using audio stream {AudioStreamIndex}",
                 item.Id,
-                item.Path,
+                sourcePath,
                 clipWindow.StartSeconds,
                 clipWindow.DurationSeconds,
                 request.AudioStreamIndex);
 
             await using var clip = await _audioClipExtractor.ExtractAsync(
-                item.Path,
+                sourcePath,
                 clipWindow,
                 request.AudioStreamIndex,
                 configuration.FfmpegPath,
@@ -106,4 +117,217 @@ public sealed class RecognitionService : IRecognitionService
             return RecognitionResponse.Error(ex.Message);
         }
     }
+
+    private async Task<string?> ResolveLocalMediaPathAsync(BaseItem item, string? mediaSourceId, CancellationToken cancellationToken)
+    {
+        var candidates = new List<MediaPathCandidate>();
+        AddCandidate(candidates, null, item.Path);
+
+        foreach (var mediaSource in GetMediaSources(item))
+        {
+            AddCandidate(
+                candidates,
+                GetStringProperty(mediaSource, "Id"),
+                GetStringProperty(mediaSource, "Path"));
+        }
+
+        AddMediaSourceCandidates(candidates, GetStaticMediaSources(item));
+
+        if (!string.IsNullOrWhiteSpace(mediaSourceId))
+        {
+            AddMediaSourceCandidate(
+                candidates,
+                await GetMediaSourceAsync(item, mediaSourceId, cancellationToken).ConfigureAwait(false));
+        }
+
+        var selected = candidates
+            .Where(candidate => IsMediaSourceMatch(candidate.MediaSourceId, mediaSourceId))
+            .Select(candidate => candidate.Path)
+            .FirstOrDefault(IsReadableLocalFile);
+
+        return selected ?? candidates
+            .Select(candidate => candidate.Path)
+            .FirstOrDefault(IsReadableLocalFile);
+    }
+
+    private IReadOnlyList<MediaSourceInfo> GetStaticMediaSources(BaseItem item)
+    {
+        try
+        {
+            return _mediaSourceManager.GetStaticMediaSources(item, false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not read static media sources for item {ItemId}", item.Id);
+            return [];
+        }
+    }
+
+    private async Task<MediaSourceInfo?> GetMediaSourceAsync(BaseItem item, string mediaSourceId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _mediaSourceManager
+                .GetMediaSource(item, mediaSourceId, null!, false, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(
+                ex,
+                "Could not read selected media source {MediaSourceId} for item {ItemId}",
+                mediaSourceId,
+                item.Id);
+            return null;
+        }
+    }
+
+    private static void AddMediaSourceCandidates(ICollection<MediaPathCandidate> candidates, IEnumerable<MediaSourceInfo> mediaSources)
+    {
+        foreach (var mediaSource in mediaSources)
+        {
+            AddMediaSourceCandidate(candidates, mediaSource);
+        }
+    }
+
+    private static void AddMediaSourceCandidate(ICollection<MediaPathCandidate> candidates, MediaSourceInfo? mediaSource)
+    {
+        if (mediaSource is not null)
+        {
+            AddCandidate(candidates, mediaSource.Id, mediaSource.Path);
+        }
+    }
+
+    private static IEnumerable<object> GetMediaSources(BaseItem item)
+    {
+        foreach (var source in GetMediaSourcesFromProperties(item))
+        {
+            yield return source;
+        }
+
+        foreach (var source in GetMediaSourcesFromMethods(item))
+        {
+            yield return source;
+        }
+    }
+
+    private static IEnumerable<object> GetMediaSourcesFromProperties(BaseItem item)
+    {
+        foreach (var propertyName in new[] { "MediaSources", "AlternateSources" })
+        {
+            var property = item.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
+            foreach (var source in EnumerateObjects(property?.GetValue(item)))
+            {
+                yield return source;
+            }
+        }
+    }
+
+    private static IEnumerable<object> GetMediaSourcesFromMethods(BaseItem item)
+    {
+        var methods = item.GetType()
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+            .Where(method => string.Equals(method.Name, "GetMediaSources", StringComparison.Ordinal))
+            .OrderBy(method => method.GetParameters().Length);
+
+        foreach (var method in methods)
+        {
+            object? result = null;
+            var parameters = method.GetParameters();
+
+            try
+            {
+                result = parameters.Length switch
+                {
+                    0 => method.Invoke(item, null),
+                    1 when parameters[0].ParameterType == typeof(bool) => method.Invoke(item, [false]),
+                    _ => null
+                };
+            }
+            catch (TargetInvocationException)
+            {
+            }
+            catch (ArgumentException)
+            {
+            }
+
+            foreach (var source in EnumerateObjects(result))
+            {
+                yield return source;
+            }
+        }
+    }
+
+    private static IEnumerable<object> EnumerateObjects(object? value)
+    {
+        if (value is null || value is string)
+        {
+            yield break;
+        }
+
+        if (value is IEnumerable enumerable)
+        {
+            foreach (var item in enumerable)
+            {
+                if (item is not null)
+                {
+                    yield return item;
+                }
+            }
+        }
+        else
+        {
+            yield return value;
+        }
+    }
+
+    private static void AddCandidate(ICollection<MediaPathCandidate> candidates, string? mediaSourceId, string? path)
+    {
+        var localPath = NormalizeLocalPath(path);
+        if (!string.IsNullOrWhiteSpace(localPath))
+        {
+            candidates.Add(new MediaPathCandidate(mediaSourceId, localPath));
+        }
+    }
+
+    private static string? NormalizeLocalPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        if (Uri.TryCreate(path, UriKind.Absolute, out var uri) && uri.IsFile)
+        {
+            return uri.LocalPath;
+        }
+
+        return path;
+    }
+
+    private static string? GetStringProperty(object source, string propertyName)
+    {
+        return source
+            .GetType()
+            .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)?
+            .GetValue(source)?
+            .ToString();
+    }
+
+    private static bool IsMediaSourceMatch(string? candidateMediaSourceId, string? requestedMediaSourceId)
+    {
+        return string.IsNullOrWhiteSpace(requestedMediaSourceId)
+            || string.Equals(candidateMediaSourceId, requestedMediaSourceId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsReadableLocalFile(string? path)
+    {
+        return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+    }
+
+    private sealed record MediaPathCandidate(string? MediaSourceId, string Path);
 }
