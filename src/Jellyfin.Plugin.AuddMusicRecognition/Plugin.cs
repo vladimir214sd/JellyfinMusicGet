@@ -29,7 +29,7 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         : base(applicationPaths, xmlSerializer)
     {
         Instance = this;
-        ApplicationPaths = applicationPaths;
+        ViewableApplicationPaths = applicationPaths;
         Logger = logger;
         ServerConfigurationManager = serverConfigurationManager;
     }
@@ -48,7 +48,7 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// <summary>
     /// Gets application paths exposed by Jellyfin.
     /// </summary>
-    internal IApplicationPaths ApplicationPaths { get; }
+    internal IApplicationPaths ViewableApplicationPaths { get; }
 
     /// <summary>
     /// Gets the plugin logger.
