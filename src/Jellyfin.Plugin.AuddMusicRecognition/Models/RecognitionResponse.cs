@@ -26,22 +26,22 @@ public sealed class RecognitionResponse
     public string? Album { get; set; }
 
     /// <summary>
-    /// Gets or sets the AudD timecode inside the recognized song.
+    /// Gets or sets the provider timecode inside the recognized song.
     /// </summary>
     public string? Timecode { get; set; }
 
     /// <summary>
-    /// Gets or sets the AudD song link.
+    /// Gets or sets the provider song link.
     /// </summary>
     public string? SongLink { get; set; }
 
     /// <summary>
-    /// Gets or sets the Spotify track URL when returned by AudD.
+    /// Gets or sets the Spotify track URL when returned by a provider.
     /// </summary>
     public string? SpotifyUrl { get; set; }
 
     /// <summary>
-    /// Gets or sets the Apple Music URL when returned by AudD.
+    /// Gets or sets the Apple Music URL when returned by a provider.
     /// </summary>
     public string? AppleMusicUrl { get; set; }
 
