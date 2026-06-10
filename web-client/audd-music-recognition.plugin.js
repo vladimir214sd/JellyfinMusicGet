@@ -611,9 +611,76 @@
     function getCurrentUserId() {
         return firstFunctionResult([
             function () { return window.ApiClient && typeof window.ApiClient.getCurrentUserId === 'function' ? window.ApiClient.getCurrentUserId() : null; },
+            function () { return window.ApiClient && window.ApiClient._currentUser ? window.ApiClient._currentUser.Id || window.ApiClient._currentUser.id : null; },
+            function () { return window.ApiClient && window.ApiClient.currentUser ? window.ApiClient.currentUser.Id || window.ApiClient.currentUser.id : null; },
+            function () { return window.ApiClient && window.ApiClient._serverInfo ? window.ApiClient._serverInfo.UserId : null; },
+            function () { return window.ApiClient && window.ApiClient._serverInfo ? window.ApiClient._serverInfo.userId : null; },
+            function () { return window.ApiClient && typeof window.ApiClient.serverInfo === 'function' ? window.ApiClient.serverInfo().UserId : null; },
+            function () { return window.ApiClient && typeof window.ApiClient.serverInfo === 'function' ? window.ApiClient.serverInfo().userId : null; },
+            function () { return window.ApiClient && typeof window.ApiClient.getCurrentUser === 'function' ? window.ApiClient.getCurrentUser() : null; },
+            function () { return window.ApiClient && typeof window.ApiClient.getCurrentUser === 'function' ? window.ApiClient.getCurrentUser().Id : null; },
+            function () { return window.ApiClient && typeof window.ApiClient.getCurrentUser === 'function' ? window.ApiClient.getCurrentUser().id : null; },
             function () { return window.ApiClient && window.ApiClient._serverInfo ? window.ApiClient._serverInfo.UserId : null; },
             function () { return window.ApiClient && window.ApiClient._serverInfo ? window.ApiClient._serverInfo.userId : null; }
         ]);
+    }
+
+    function getUserIdFromValue(value) {
+        if (!value) {
+            return null;
+        }
+
+        if (typeof value === 'string') {
+            return value;
+        }
+
+        if (value.Id || value.id || value.UserId || value.userId) {
+            return value.Id || value.id || value.UserId || value.userId;
+        }
+
+        return null;
+    }
+
+    function normalizeIdForCompare(value) {
+        return value === undefined || value === null
+            ? ''
+            : String(value).replace(/-/g, '').toLowerCase();
+    }
+
+    function areIdsEqual(first, second) {
+        var normalizedFirst = normalizeIdForCompare(first);
+        var normalizedSecond = normalizeIdForCompare(second);
+        return normalizedFirst && normalizedSecond && normalizedFirst === normalizedSecond;
+    }
+
+    function getCurrentUserIdAsync() {
+        var value = getCurrentUserId();
+        if (value && typeof value.then === 'function') {
+            return value.then(getUserIdFromValue).catch(function () {
+                return null;
+            });
+        }
+
+        var userId = getUserIdFromValue(value);
+        if (userId) {
+            return Promise.resolve(userId);
+        }
+
+        if (window.ApiClient && typeof window.ApiClient.getCurrentUser === 'function') {
+            try {
+                var user = window.ApiClient.getCurrentUser();
+                if (user && typeof user.then === 'function') {
+                    return user.then(getUserIdFromValue).catch(function () {
+                        return null;
+                    });
+                }
+
+                return Promise.resolve(getUserIdFromValue(user));
+            } catch (_) {
+            }
+        }
+
+        return Promise.resolve(null);
     }
 
     function readArrayValue(value, names) {
@@ -643,10 +710,18 @@
             && !/^rtmps?:\/\//i.test(path);
     }
 
-    function getPlaybackInfoUrl(itemId) {
-        var userId = getCurrentUserId();
+    function getPlaybackInfoUrl(itemId, userId) {
         var query = userId && typeof userId !== 'object' ? '?userId=' + encodeURIComponent(String(userId)) : '';
         return 'Items/' + encodeURIComponent(itemId) + '/PlaybackInfo' + query;
+    }
+
+    function getSessionsUrl(userId) {
+        var query = ['activeWithinSeconds=60'];
+        if (userId && typeof userId !== 'object') {
+            query.unshift('controllableByUserId=' + encodeURIComponent(String(userId)));
+        }
+
+        return 'Sessions?' + query.join('&');
     }
 
     function choosePlaybackMediaSource(context, playbackInfo) {
@@ -694,6 +769,72 @@
         ]);
 
         return context;
+    }
+
+    function choosePlaybackSession(context, sessions) {
+        var values = Array.isArray(sessions) ? sessions : [];
+        var selected = null;
+
+        values.some(function (session) {
+            var playState = readObjectValue(session, ['PlayState', 'playState']) || {};
+            var nowPlayingItem = readObjectValue(session, ['NowPlayingItem', 'nowPlayingItem']) || {};
+            var sessionItemId = readResponseValue(session, ['ItemId', 'itemId'])
+                || readResponseValue(nowPlayingItem, ['Id', 'id', 'ItemId', 'itemId']);
+            var sessionMediaSourceId = readResponseValue(playState, ['MediaSourceId', 'mediaSourceId'])
+                || readResponseValue(session, ['MediaSourceId', 'mediaSourceId']);
+
+            if (areIdsEqual(sessionItemId, context.itemId)) {
+                selected = session;
+                return true;
+            }
+
+            if (context.mediaSourceId && sessionMediaSourceId && areIdsEqual(sessionMediaSourceId, context.mediaSourceId)) {
+                selected = session;
+                return true;
+            }
+
+            return false;
+        });
+
+        return selected;
+    }
+
+    function mergeSessionPlaybackContext(context, session) {
+        if (!session) {
+            return context;
+        }
+
+        var playState = readObjectValue(session, ['PlayState', 'playState']) || {};
+        var nowPlayingItem = readObjectValue(session, ['NowPlayingItem', 'nowPlayingItem']) || {};
+        var sessionMediaSourceId = readResponseValue(playState, ['MediaSourceId', 'mediaSourceId'])
+            || readResponseValue(session, ['MediaSourceId', 'mediaSourceId']);
+        var sessionAudioStreamIndex = readResponseValue(playState, ['AudioStreamIndex', 'audioStreamIndex'])
+            || readResponseValue(session, ['AudioStreamIndex', 'audioStreamIndex']);
+        var itemPath = readResponseValue(nowPlayingItem, ['Path', 'path']);
+
+        context.mediaSourceId = sessionMediaSourceId || context.mediaSourceId;
+        context.audioStreamIndex = pickFirstValue([
+            context.audioStreamIndex,
+            sessionAudioStreamIndex
+        ]);
+
+        mergePlaybackInfo(context, nowPlayingItem);
+
+        if (!context.mediaSourcePath && isLocalMediaPath(itemPath)) {
+            context.mediaSourcePath = itemPath;
+        }
+
+        return context;
+    }
+
+    function fetchPlaybackSessions(userId) {
+        return apiGetJson(getSessionsUrl(userId), 6000).catch(function (error) {
+            if (userId) {
+                return apiGetJson(getSessionsUrl(null), 6000);
+            }
+
+            throw error;
+        });
     }
 
     function getActiveVideo() {
@@ -1252,6 +1393,8 @@
 
                 var mediaSources = item.MediaSources || item.mediaSources || [];
                 var mediaSource = currentMediaSource || (mediaSources.length ? mediaSources[0] : {});
+                var mediaSourcePath = readResponseValue(mediaSource, ['Path', 'path'])
+                    || readResponseValue(item, ['Path', 'path']);
 
                 var itemId = item.Id || item.id || item.ItemId || item.itemId || fallback.itemId;
                 var mediaSourceId = item.MediaSourceId
@@ -1266,6 +1409,7 @@
                 return {
                     itemId: itemId,
                     mediaSourceId: mediaSourceId || null,
+                    mediaSourcePath: isLocalMediaPath(mediaSourcePath) ? mediaSourcePath : null,
                     positionTicks: normalizeTicks(position, video ? video.currentTime : null),
                     audioStreamIndex: pickFirstValue([
                         statePlayState.AudioStreamIndex,
@@ -1288,12 +1432,25 @@
                     return context;
                 }
 
+                var userId = await getCurrentUserIdAsync();
+
                 try {
-                    var playbackInfo = await apiGetJson(getPlaybackInfoUrl(context.itemId), 6000);
-                    return mergePlaybackInfo(context, playbackInfo);
+                    var playbackInfo = await apiGetJson(getPlaybackInfoUrl(context.itemId, userId), 6000);
+                    mergePlaybackInfo(context, playbackInfo);
                 } catch (_) {
+                }
+
+                if (context.mediaSourcePath) {
                     return context;
                 }
+
+                try {
+                    var sessions = await fetchPlaybackSessions(userId);
+                    mergeSessionPlaybackContext(context, choosePlaybackSession(context, sessions));
+                } catch (_) {
+                }
+
+                return context;
             }
 
             cacheKey(context) {
