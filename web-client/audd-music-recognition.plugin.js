@@ -507,10 +507,7 @@
     function getTrackCopyText(response) {
         var artist = getTrackArtist(response);
         var title = getTrackTitle(response);
-        var album = getTrackAlbum(response);
-        var main = [artist, title].filter(Boolean).join(' - ') || getText(response);
-
-        return album ? main + ' (' + album + ')' : main;
+        return [artist, title].filter(Boolean).join(' - ') || getText(response);
     }
 
     function getFriendlyStatus(text, t) {
