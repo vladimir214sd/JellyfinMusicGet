@@ -825,7 +825,13 @@
                 return null;
             }
 
-            if (deviceId && areIdsEqual(sessionDeviceId, deviceId)) {
+            var deviceMatch = Boolean(deviceId && areIdsEqual(sessionDeviceId, deviceId));
+            var itemMatch = Boolean(context && context.itemId && areIdsEqual(sessionItemId, context.itemId));
+            var mediaSourceMatch = Boolean(context && context.mediaSourceId
+                && sessionMediaSourceId
+                && areIdsEqual(sessionMediaSourceId, context.mediaSourceId));
+
+            if (deviceMatch) {
                 score += 10000;
             }
 
@@ -833,11 +839,11 @@
                 score += 2000;
             }
 
-            if (context && areIdsEqual(sessionItemId, context.itemId)) {
+            if (itemMatch) {
                 score += 500;
             }
 
-            if (context && context.mediaSourceId && sessionMediaSourceId && areIdsEqual(sessionMediaSourceId, context.mediaSourceId)) {
+            if (mediaSourceMatch) {
                 score += 250;
             }
 
@@ -846,12 +852,37 @@
                 score += checkInTime / 10000000000000;
             }
 
-            return { session: session, score: score };
+            return {
+                session: session,
+                score: score,
+                deviceMatch: deviceMatch,
+                itemMatch: itemMatch,
+                mediaSourceMatch: mediaSourceMatch
+            };
         }).filter(Boolean).sort(function (first, second) {
             return second.score - first.score;
         });
 
-        return candidates.length ? candidates[0].session : null;
+        var exactDeviceCandidates = candidates.filter(function (candidate) {
+            return candidate.deviceMatch;
+        });
+        if (exactDeviceCandidates.length) {
+            return exactDeviceCandidates[0].session;
+        }
+
+        var localContextCandidates = candidates.filter(function (candidate) {
+            return candidate.itemMatch || candidate.mediaSourceMatch;
+        });
+        if (localContextCandidates.length) {
+            return localContextCandidates[0].session;
+        }
+
+        // Never replace a valid local player context with another device's session.
+        if (context && context.itemId) {
+            return null;
+        }
+
+        return candidates.length === 1 ? candidates[0].session : null;
     }
 
     function mergeSessionPlaybackContext(context, session) {
@@ -1142,6 +1173,7 @@
                 this.currentVideo = null;
                 this.currentVideoPlaybackIdentity = null;
                 this.currentMediaIdentity = null;
+                this.currentItemId = null;
                 this.lastTriggerAt = 0;
                 this.requestSequence = 0;
                 this.isBusy = false;
@@ -1223,7 +1255,7 @@
                     '.auddRecognitionDebug{pointer-events:auto;margin-top:7px;min-height:24px;max-width:100%;padding:6px 8px;border-radius:7px;background:rgba(20,20,20,.55);color:rgba(255,255,255,.82);font-size:11px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text;user-select:text;-webkit-user-select:text;}',
                     '.auddRecognitionDebug:empty{display:none;}',
                     '@keyframes auddRecognitionPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(.9);opacity:.72;}}',
-                    '@media (max-width: 640px){.auddRecognitionOverlay{top:10px;right:84px;gap:6px;max-width:min(280px,calc(100vw - 104px));}.auddRecognitionButton{width:38px;height:38px;}.auddRecognitionButton svg{width:19px;height:19px;}.auddRecognitionPanel{width:min(280px,calc(100vw - 104px));}.auddRecognitionHeading{margin-bottom:6px;font-size:14px;}.auddRecognitionCard{padding:10px 12px 11px;}.auddRecognitionMain{grid-template-columns:42px minmax(0,1fr);gap:10px;}.auddRecognitionCover{width:42px;height:42px;border-radius:5px;}.auddRecognitionCoverIcon{width:22px;height:22px;}.auddRecognitionTitle{font-size:15px;line-height:1.15;}.auddRecognitionArtist{margin-top:4px;font-size:12px;}.auddRecognitionAlbum{margin-top:3px;font-size:11px;}.auddRecognitionActions{margin-top:10px;min-height:34px;}.auddRecognitionAction{min-width:62px;min-height:34px;padding:0 9px;font-size:11px;}.auddRecognitionStatus .auddRecognitionTitle{font-size:14px;}.auddRecognitionStatus .auddRecognitionArtist{font-size:11px;}.auddRecognitionDebug{margin-top:5px;min-height:20px;padding:5px 7px;font-size:10px;}}'
+                    '@media (max-width: 760px) and (pointer: coarse){.auddRecognitionOverlay{top:8px;right:76px;gap:4px;max-width:min(216px,calc(100vw - 94px));}.auddRecognitionButton{width:38px;height:38px;}.auddRecognitionButton svg{width:19px;height:19px;}.auddRecognitionPanel{width:min(216px,calc(100vw - 94px));}.auddRecognitionHeading{margin-bottom:4px;font-size:11px;}.auddRecognitionCard{padding:7px 8px 8px;}.auddRecognitionMain{grid-template-columns:30px minmax(0,1fr);gap:7px;}.auddRecognitionCover{width:30px;height:30px;border-radius:4px;}.auddRecognitionCoverIcon{width:16px;height:16px;}.auddRecognitionTitle{font-size:12px;line-height:1.1;}.auddRecognitionArtist{margin-top:3px;font-size:10px;}.auddRecognitionAlbum{margin-top:2px;font-size:9px;}.auddRecognitionActions{margin-top:7px;min-height:27px;}.auddRecognitionAction{min-width:45px;min-height:27px;padding:0 5px;font-size:9px;}.auddRecognitionStatus .auddRecognitionTitle{font-size:11px;}.auddRecognitionStatus .auddRecognitionArtist{font-size:9px;}.auddRecognitionDebug{margin-top:4px;min-height:17px;padding:3px 5px;font-size:8px;}}'
                 ].join('');
                 document.head.appendChild(style);
             }
@@ -1647,6 +1679,7 @@
                 } else if (videoPlaybackIdentity && this.currentVideoPlaybackIdentity !== videoPlaybackIdentity) {
                     this.currentVideoPlaybackIdentity = videoPlaybackIdentity;
                     this.currentMediaIdentity = null;
+                    this.currentItemId = null;
                     this.requestSequence += 1;
                     this.setBusy(false);
                     this.setResult('');
@@ -1668,8 +1701,10 @@
 
                 if (!this.currentMediaIdentity) {
                     this.currentMediaIdentity = identity;
-                } else if (hasReliableItemId && this.currentMediaIdentity !== identity) {
+                    this.currentItemId = context.itemId;
+                } else if (hasReliableItemId && this.currentItemId && !areIdsEqual(this.currentItemId, context.itemId)) {
                     this.currentMediaIdentity = identity;
+                    this.currentItemId = context.itemId;
                     this.requestSequence += 1;
                     this.setBusy(false);
                     this.setResult('');
@@ -1958,6 +1993,7 @@
 
                 var identity = this.mediaIdentity(context);
                 this.currentMediaIdentity = identity || this.currentMediaIdentity;
+                this.currentItemId = context.itemId || this.currentItemId;
 
                 var key = this.cacheKey(context);
                 if (this.cache.has(key)) {
