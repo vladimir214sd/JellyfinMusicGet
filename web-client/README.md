@@ -19,4 +19,6 @@ It is injected into Jellyfin Web by `WebOverlayInjectionMiddleware` with a uniqu
 - Falls back to Jellyfin video/HLS URLs when the Jellyfin Web playback manager is not exposed as a window global.
 - When `ShowOverlayDebugInfo` is enabled in plugin settings, displays the extracted clip duration and uploaded file size next to the button.
 - Caches results in memory by item id and rounded 10-second playback position.
-- Shows loading, recognized track, no match, and error states.
+- Shows loading, recognized track, no match, and error states in a compact now-playing card.
+- Uses Spotify first, then Apple Music, then AudD song links when metadata is available.
+- Supports copying the displayed track text from the card.
