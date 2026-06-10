@@ -8,9 +8,34 @@ namespace Jellyfin.Plugin.AuddMusicRecognition.Configuration;
 public sealed class PluginConfiguration : BasePluginConfiguration
 {
     /// <summary>
+    /// Gets or sets the selected recognition provider.
+    /// </summary>
+    public string RecognitionProvider { get; set; } = "AudD";
+
+    /// <summary>
     /// Gets or sets the AudD API token.
     /// </summary>
     public string AuddApiToken { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the RapidAPI key for the Shazam provider.
+    /// </summary>
+    public string ShazamRapidApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the RapidAPI host for the Shazam provider.
+    /// </summary>
+    public string ShazamRapidApiHost { get; set; } = "shazam.p.rapidapi.com";
+
+    /// <summary>
+    /// Gets or sets the Shazam API locale.
+    /// </summary>
+    public string ShazamLocale { get; set; } = "en-US";
+
+    /// <summary>
+    /// Gets or sets the Shazam API timezone.
+    /// </summary>
+    public string ShazamTimeZone { get; set; } = "UTC";
 
     /// <summary>
     /// Gets or sets how many seconds before the current playback position are included.
