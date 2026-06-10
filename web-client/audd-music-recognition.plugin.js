@@ -268,6 +268,93 @@
         }
     }
 
+    function getTrackTitle(response) {
+        return readResponseValue(response, ['title', 'Title']) || '';
+    }
+
+    function getTrackArtist(response) {
+        return readResponseValue(response, ['artist', 'Artist']) || '';
+    }
+
+    function getTrackAlbum(response) {
+        return readResponseValue(response, ['album', 'Album']) || '';
+    }
+
+    function getAlbumArtUrl(response) {
+        return readResponseValue(response, ['albumArtUrl', 'AlbumArtUrl']) || '';
+    }
+
+    function getPreferredMusicLink(response) {
+        var spotifyUrl = readResponseValue(response, ['spotifyUrl', 'SpotifyUrl']);
+        if (spotifyUrl) {
+            return {
+                label: 'Spotify',
+                url: spotifyUrl
+            };
+        }
+
+        var appleMusicUrl = readResponseValue(response, ['appleMusicUrl', 'AppleMusicUrl']);
+        if (appleMusicUrl) {
+            return {
+                label: 'Apple Music',
+                url: appleMusicUrl
+            };
+        }
+
+        var songLink = readResponseValue(response, ['songLink', 'SongLink']);
+        return songLink ? {
+            label: 'AudD',
+            url: songLink
+        } : null;
+    }
+
+    function getTrackCopyText(response) {
+        var artist = getTrackArtist(response);
+        var title = getTrackTitle(response);
+        var album = getTrackAlbum(response);
+        var main = [artist, title].filter(Boolean).join(' - ') || getText(response);
+
+        return album ? main + ' (' + album + ')' : main;
+    }
+
+    function getFriendlyStatus(text) {
+        var value = text ? String(text) : '';
+        var lower = value.toLowerCase();
+
+        if (!value || lower === 'starting...' || lower === 'recognizing...') {
+            return {
+                title: 'Слушаю...',
+                subtitle: 'Ищу трек в этом фрагменте'
+            };
+        }
+
+        if (lower === 'still recognizing...') {
+            return {
+                title: 'Уже слушаю...',
+                subtitle: 'Еще пару секунд'
+            };
+        }
+
+        if (lower === 'no match') {
+            return {
+                title: 'Не нашел трек',
+                subtitle: 'Попробуй другой момент'
+            };
+        }
+
+        if (lower === 'no item id' || lower === 'could not read playback') {
+            return {
+                title: 'Не вижу видео',
+                subtitle: 'Открой воспроизведение заново'
+            };
+        }
+
+        return {
+            title: 'Не получилось',
+            subtitle: value
+        };
+    }
+
     function getText(response) {
         if (!response) {
             return 'No match';
@@ -276,8 +363,8 @@
         var status = getResponseStatus(response);
         if (status === 'recognized') {
             return [
-                readResponseValue(response, ['artist', 'Artist']),
-                readResponseValue(response, ['title', 'Title'])
+                getTrackArtist(response),
+                getTrackTitle(response)
             ].filter(Boolean).join(' - ') || 'Recognized';
         }
 
@@ -486,8 +573,20 @@
                 this.cache = new Map();
                 this.overlay = null;
                 this.button = null;
-                this.result = null;
+                this.panel = null;
+                this.heading = null;
+                this.card = null;
+                this.cover = null;
+                this.coverImage = null;
+                this.title = null;
+                this.artist = null;
+                this.album = null;
+                this.actions = null;
+                this.serviceLink = null;
+                this.openLink = null;
+                this.copyButton = null;
                 this.debug = null;
+                this.copyText = '';
                 this.currentRoot = null;
                 this.currentMediaIdentity = null;
                 this.lastTriggerAt = 0;
@@ -500,6 +599,7 @@
                 this.ensureOverlay = this.ensureOverlay.bind(this);
                 this.handleTrigger = this.handleTrigger.bind(this);
                 this.handleCopyText = this.handleCopyText.bind(this);
+                this.stopOverlayEvent = this.stopOverlayEvent.bind(this);
                 this.runRecognition = this.runRecognition.bind(this);
 
                 this.injectStyles();
@@ -536,15 +636,38 @@
                 var style = document.createElement('style');
                 style.id = 'auddMusicRecognitionStyles';
                 style.textContent = [
-                    '.auddRecognitionOverlay{position:fixed;top:calc(env(safe-area-inset-top,0px) + 16px);right:calc(env(safe-area-inset-right,0px) + 16px);z-index:99999;display:flex;align-items:center;gap:8px;max-width:min(420px,calc(100vw - 32px));pointer-events:auto;font-family:inherit;}',
-                    '.auddRecognitionButton{width:40px;height:40px;border:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(20,20,20,.72);color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.28);cursor:pointer;touch-action:manipulation;}',
+                    '.auddRecognitionOverlay{position:fixed;top:calc(env(safe-area-inset-top,0px) + 16px);right:calc(env(safe-area-inset-right,0px) + 16px);z-index:99999;display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:min(430px,calc(100vw - 24px));pointer-events:none;font-family:inherit;color:#fff;}',
+                    '.auddRecognitionButton{pointer-events:auto;width:42px;height:42px;border:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(20,20,20,.72);color:#fff;box-shadow:0 8px 26px rgba(0,0,0,.34);cursor:pointer;touch-action:manipulation;transition:background .18s ease,transform .18s ease,opacity .18s ease;}',
+                    '.auddRecognitionButton:hover{background:rgba(34,34,34,.86);transform:translateY(-1px);}',
                     '.auddRecognitionButton:disabled{opacity:.62;cursor:default;}',
+                    '.auddRecognitionButton.is-busy svg{animation:auddRecognitionPulse 1.1s ease-in-out infinite;}',
                     '.auddRecognitionButton svg{width:21px;height:21px;fill:currentColor;}',
-                    '.auddRecognitionResult{min-height:32px;max-width:360px;padding:7px 10px;border-radius:7px;background:rgba(20,20,20,.72);color:#fff;font-size:13px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.28);cursor:text;user-select:text;-webkit-user-select:text;}',
-                    '.auddRecognitionResult:empty{display:none;}',
-                    '.auddRecognitionDebug{min-height:24px;max-width:260px;padding:5px 8px;border-radius:7px;background:rgba(20,20,20,.55);color:rgba(255,255,255,.82);font-size:11px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text;user-select:text;-webkit-user-select:text;}',
+                    '.auddRecognitionPanel{pointer-events:auto;width:min(412px,calc(100vw - 32px));text-shadow:0 1px 2px rgba(0,0,0,.4);}',
+                    '.auddRecognitionPanel.is-hidden{display:none;}',
+                    '.auddRecognitionHeading{margin:0 0 9px 0;font-size:18px;font-weight:700;line-height:1.2;color:#fff;}',
+                    '.auddRecognitionCard{border-radius:8px;background:rgba(24,24,24,.88);box-shadow:0 14px 42px rgba(0,0,0,.42);padding:18px 20px 16px;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);}',
+                    '.auddRecognitionMain{display:grid;grid-template-columns:58px minmax(0,1fr);gap:14px;align-items:center;}',
+                    '.auddRecognitionCover{width:58px;height:58px;border-radius:6px;background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,.06));display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);}',
+                    '.auddRecognitionCover img{width:100%;height:100%;object-fit:cover;display:none;}',
+                    '.auddRecognitionCover.has-image img{display:block;}',
+                    '.auddRecognitionCover.has-image .auddRecognitionCoverIcon{display:none;}',
+                    '.auddRecognitionCoverIcon{width:27px;height:27px;color:rgba(255,255,255,.72);}',
+                    '.auddRecognitionTitle{font-size:20px;font-weight:800;line-height:1.15;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text;}',
+                    '.auddRecognitionArtist{margin-top:6px;font-size:16px;line-height:1.2;color:rgba(255,255,255,.72);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text;}',
+                    '.auddRecognitionAlbum{margin-top:5px;font-size:12px;line-height:1.2;color:rgba(255,255,255,.48);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text;}',
+                    '.auddRecognitionAlbum:empty{display:none;}',
+                    '.auddRecognitionActions{margin-top:16px;display:flex;align-items:center;min-height:38px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;}',
+                    '.auddRecognitionActions.is-hidden{display:none;}',
+                    '.auddRecognitionAction{appearance:none;border:0;background:transparent;color:#fff;text-decoration:none;height:38px;padding:0 17px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;line-height:1;white-space:nowrap;cursor:pointer;font-family:inherit;}',
+                    '.auddRecognitionAction:hover{background:rgba(255,255,255,.1);text-decoration:none;}',
+                    '.auddRecognitionAction + .auddRecognitionAction{border-left:1px solid rgba(255,255,255,.2);}',
+                    '.auddRecognitionStatus .auddRecognitionTitle{font-size:17px;font-weight:750;}',
+                    '.auddRecognitionStatus .auddRecognitionArtist{font-size:13px;}',
+                    '.auddRecognitionStatus .auddRecognitionActions{display:none;}',
+                    '.auddRecognitionDebug{pointer-events:auto;margin-top:7px;min-height:24px;max-width:100%;padding:6px 8px;border-radius:7px;background:rgba(20,20,20,.55);color:rgba(255,255,255,.82);font-size:11px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text;user-select:text;-webkit-user-select:text;}',
                     '.auddRecognitionDebug:empty{display:none;}',
-                    '@media (max-width: 640px){.auddRecognitionOverlay{top:12px;right:12px;max-width:calc(100vw - 24px);}.auddRecognitionResult{max-width:calc(100vw - 76px);font-size:12px;}}'
+                    '@keyframes auddRecognitionPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(.9);opacity:.72;}}',
+                    '@media (max-width: 640px){.auddRecognitionOverlay{top:12px;right:12px;max-width:calc(100vw - 24px);}.auddRecognitionPanel{width:calc(100vw - 24px);}.auddRecognitionHeading{font-size:16px;}.auddRecognitionCard{padding:14px;}.auddRecognitionMain{grid-template-columns:50px minmax(0,1fr);gap:12px;}.auddRecognitionCover{width:50px;height:50px;}.auddRecognitionTitle{font-size:17px;}.auddRecognitionArtist{font-size:14px;}.auddRecognitionAction{padding:0 12px;font-size:12px;}}'
                 ].join('');
                 document.head.appendChild(style);
             }
@@ -597,19 +720,89 @@
                 this.button.addEventListener('click', this.handleTrigger, true);
                 this.button.addEventListener('pointerup', this.handleTrigger, true);
 
-                this.result = document.createElement('div');
-                this.result.className = 'auddRecognitionResult';
-                this.result.setAttribute('aria-live', 'polite');
-                this.result.title = 'Double-click to copy';
-                this.result.addEventListener('dblclick', this.handleCopyText, true);
+                this.panel = document.createElement('div');
+                this.panel.className = 'auddRecognitionPanel is-hidden';
+                this.panel.setAttribute('aria-live', 'polite');
+                this.panel.title = 'Double-click to copy';
+                this.panel.addEventListener('dblclick', this.handleCopyText, true);
+                this.panel.addEventListener('pointerdown', this.stopOverlayEvent);
+                this.panel.addEventListener('click', this.stopOverlayEvent);
+
+                this.heading = document.createElement('div');
+                this.heading.className = 'auddRecognitionHeading';
+                this.heading.textContent = 'Сейчас играет';
+
+                this.card = document.createElement('div');
+                this.card.className = 'auddRecognitionCard';
+
+                var main = document.createElement('div');
+                main.className = 'auddRecognitionMain';
+
+                this.cover = document.createElement('div');
+                this.cover.className = 'auddRecognitionCover';
+                this.cover.innerHTML = '<img alt=""><svg class="auddRecognitionCoverIcon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6Z"/></svg>';
+                this.coverImage = this.cover.querySelector('img');
+                this.coverImage.addEventListener('error', function () {
+                    this.setCover('');
+                }.bind(this));
+
+                var trackText = document.createElement('div');
+                trackText.className = 'auddRecognitionText';
+
+                this.title = document.createElement('div');
+                this.title.className = 'auddRecognitionTitle';
+
+                this.artist = document.createElement('div');
+                this.artist.className = 'auddRecognitionArtist';
+
+                this.album = document.createElement('div');
+                this.album.className = 'auddRecognitionAlbum';
+
+                trackText.appendChild(this.title);
+                trackText.appendChild(this.artist);
+                trackText.appendChild(this.album);
+                main.appendChild(this.cover);
+                main.appendChild(trackText);
+
+                this.actions = document.createElement('div');
+                this.actions.className = 'auddRecognitionActions is-hidden';
+
+                this.serviceLink = document.createElement('a');
+                this.serviceLink.className = 'auddRecognitionAction';
+                this.serviceLink.target = '_blank';
+                this.serviceLink.rel = 'noopener noreferrer';
+                this.serviceLink.addEventListener('click', this.stopOverlayEvent);
+
+                this.openLink = document.createElement('a');
+                this.openLink.className = 'auddRecognitionAction';
+                this.openLink.target = '_blank';
+                this.openLink.rel = 'noopener noreferrer';
+                this.openLink.textContent = 'Открыть';
+                this.openLink.addEventListener('click', this.stopOverlayEvent);
+
+                this.copyButton = document.createElement('button');
+                this.copyButton.type = 'button';
+                this.copyButton.className = 'auddRecognitionAction';
+                this.copyButton.textContent = 'Копировать';
+                this.copyButton.addEventListener('click', this.handleCopyText, true);
+
+                this.actions.appendChild(this.serviceLink);
+                this.actions.appendChild(this.openLink);
+                this.actions.appendChild(this.copyButton);
+                this.card.appendChild(main);
+                this.card.appendChild(this.actions);
+                this.panel.appendChild(this.heading);
+                this.panel.appendChild(this.card);
 
                 this.debug = document.createElement('div');
                 this.debug.className = 'auddRecognitionDebug';
                 this.debug.title = 'Double-click to copy';
                 this.debug.addEventListener('dblclick', this.handleCopyText, true);
+                this.debug.addEventListener('pointerdown', this.stopOverlayEvent);
+                this.debug.addEventListener('click', this.stopOverlayEvent);
 
                 this.overlay.appendChild(this.button);
-                this.overlay.appendChild(this.result);
+                this.overlay.appendChild(this.panel);
                 this.overlay.appendChild(this.debug);
                 root.appendChild(this.overlay);
 
@@ -746,19 +939,125 @@
 
                 if (this.button) {
                     this.button.disabled = isBusy;
+                    this.button.classList.toggle('is-busy', isBusy);
                 }
             }
 
             setResult(text) {
-                if (this.result) {
-                    this.result.textContent = text || '';
+                if (!this.panel || !this.heading || !this.card || !this.title || !this.artist || !this.album || !this.actions) {
+                    return;
+                }
+
+                if (!text) {
+                    this.panel.classList.add('is-hidden');
+                    this.copyText = '';
+                    return;
+                }
+
+                var status = getFriendlyStatus(text);
+                this.heading.textContent = 'Распознавание';
+                this.card.className = 'auddRecognitionCard auddRecognitionStatus';
+                this.panel.classList.remove('is-hidden');
+                this.setCover('');
+                this.title.textContent = status.title;
+                this.artist.textContent = status.subtitle;
+                this.album.textContent = '';
+                this.actions.classList.add('is-hidden');
+                this.copyText = status.subtitle ? status.title + ': ' + status.subtitle : status.title;
+                this.panel.setAttribute('data-copy-text', this.copyText);
+                if (this.copyButton) {
+                    this.copyButton.setAttribute('data-copy-text', this.copyText);
+                }
+            }
+
+            setRecognitionResponse(response) {
+                if (getResponseStatus(response) !== 'recognized') {
+                    this.setResult(getText(response));
+                    return;
+                }
+
+                if (!this.panel || !this.heading || !this.card || !this.title || !this.artist || !this.album || !this.actions) {
+                    return;
+                }
+
+                var link = getPreferredMusicLink(response);
+                var copyText = getTrackCopyText(response);
+
+                this.heading.textContent = 'Сейчас играет';
+                this.card.className = 'auddRecognitionCard';
+                this.panel.classList.remove('is-hidden');
+                this.setCover(getAlbumArtUrl(response));
+                this.title.textContent = getTrackTitle(response) || 'Recognized';
+                this.artist.textContent = getTrackArtist(response) || getTrackAlbum(response) || '';
+                this.album.textContent = getTrackArtist(response) && getTrackAlbum(response) ? getTrackAlbum(response) : '';
+                this.copyText = copyText;
+                this.panel.setAttribute('data-copy-text', copyText);
+
+                if (this.copyButton) {
+                    this.copyButton.setAttribute('data-copy-text', copyText);
+                }
+
+                if (link && this.serviceLink && this.openLink) {
+                    this.serviceLink.href = link.url;
+                    this.serviceLink.textContent = link.label;
+                    this.serviceLink.style.display = '';
+                    this.openLink.href = link.url;
+                    this.openLink.style.display = '';
+                    if (this.copyButton) {
+                        this.copyButton.style.borderLeft = '';
+                    }
+
+                    this.actions.classList.remove('is-hidden');
+                } else {
+                    if (this.serviceLink) {
+                        this.serviceLink.removeAttribute('href');
+                        this.serviceLink.style.display = 'none';
+                    }
+
+                    if (this.openLink) {
+                        this.openLink.removeAttribute('href');
+                        this.openLink.style.display = 'none';
+                    }
+
+                    if (this.copyButton) {
+                        this.copyButton.style.borderLeft = '0';
+                    }
+
+                    this.actions.classList.remove('is-hidden');
+                }
+            }
+
+            setCover(url) {
+                if (!this.cover || !this.coverImage) {
+                    return;
+                }
+
+                if (url) {
+                    this.coverImage.src = url;
+                    this.cover.classList.add('has-image');
+                } else {
+                    this.coverImage.removeAttribute('src');
+                    this.cover.classList.remove('has-image');
                 }
             }
 
             setDebug(text) {
                 if (this.debug) {
                     this.debug.textContent = text || '';
+                    if (text) {
+                        this.debug.setAttribute('data-copy-text', text);
+                    } else {
+                        this.debug.removeAttribute('data-copy-text');
+                    }
                 }
+            }
+
+            stopOverlayEvent(event) {
+                if (!event) {
+                    return;
+                }
+
+                event.stopPropagation();
             }
 
             consumeEvent(event) {
@@ -795,17 +1094,26 @@
                 this.consumeEvent(event);
 
                 var target = event && event.currentTarget;
-                var text = target && target.textContent ? target.textContent.trim() : '';
+                var text = target && target.getAttribute ? target.getAttribute('data-copy-text') : '';
+                text = text || this.copyText || (target && target.textContent ? target.textContent.trim() : '');
                 if (!text) {
                     return;
                 }
 
                 copyTextToClipboard(text).then(function (copied) {
                     if (copied && target) {
+                        var previousText = target.tagName === 'BUTTON' ? target.textContent : null;
                         target.title = 'Copied';
+                        if (previousText) {
+                            target.textContent = 'Скопировано';
+                        }
+
                         window.setTimeout(function () {
                             if (target) {
                                 target.title = 'Double-click to copy';
+                                if (previousText) {
+                                    target.textContent = previousText;
+                                }
                             }
                         }, 1200);
                     }
@@ -838,7 +1146,7 @@
 
                 var key = this.cacheKey(context);
                 if (this.cache.has(key)) {
-                    this.setResult(getText(this.cache.get(key)));
+                    this.setRecognitionResponse(this.cache.get(key));
                     return;
                 }
 
@@ -867,7 +1175,7 @@
                         this.setDebug(formatClipDebug(response, context));
                     }
 
-                    this.setResult(getText(response));
+                    this.setRecognitionResponse(response);
                 } catch (error) {
                     if (requestId !== this.requestSequence || (identity && identity !== this.currentMediaIdentity)) {
                         return;
