@@ -23,6 +23,10 @@ It is injected into Jellyfin Web by `WebOverlayInjectionMiddleware` with a uniqu
 - Caches results in memory by item id and rounded 10-second playback position.
 - Clears the displayed track when playback moves more than 60 seconds away from the recognized position.
 - Shows loading, recognized track, no match, and error states in a compact now-playing card.
-- Uses Spotify first, then Apple Music, then AudD song links when metadata is available.
+- Uses Spotify first, then Apple Music, then provider song links when metadata is available.
 - Supports copying the displayed track text from the card.
 - Localizes overlay labels from the Jellyfin/browser language with English fallback.
+
+## Providers
+
+The server plugin can recognize clips with AudD or Shazam through RapidAPI. The active provider and API keys are configured from the plugin settings page.
