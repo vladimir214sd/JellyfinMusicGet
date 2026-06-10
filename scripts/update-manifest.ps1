@@ -57,6 +57,6 @@ $versionEntry = [pscustomobject]@{
 $remainingVersions = @($entry.versions) | Where-Object { $_.version -ne $Version }
 $entry.versions = @($versionEntry) + $remainingVersions
 
-$entries | ConvertTo-Json -Depth 10 | Set-Content -Path $manifestPath -Encoding UTF8
+ConvertTo-Json -InputObject @($entries) -Depth 10 | Set-Content -Path $manifestPath -Encoding UTF8
 
 Write-Host "Updated manifest for version $Version"
