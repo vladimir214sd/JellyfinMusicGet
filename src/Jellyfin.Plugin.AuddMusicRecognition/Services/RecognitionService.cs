@@ -60,12 +60,22 @@ public sealed class RecognitionService : IRecognitionService
 
         try
         {
+            _logger.LogInformation(
+                "Extracting AudD clip for item {ItemId} from {SourcePath} at {StartSeconds}s for {DurationSeconds}s using audio stream {AudioStreamIndex}",
+                item.Id,
+                item.Path,
+                clipWindow.StartSeconds,
+                clipWindow.DurationSeconds,
+                request.AudioStreamIndex);
+
             await using var clip = await _audioClipExtractor.ExtractAsync(
                 item.Path,
                 clipWindow,
                 request.AudioStreamIndex,
                 configuration.FfmpegPath,
                 cancellationToken).ConfigureAwait(false);
+
+            _logger.LogInformation("Submitting AudD clip {ClipPath} for item {ItemId}", clip.Path, item.Id);
 
             var response = await _auddClient.RecognizeAsync(
                 clip.Path,
