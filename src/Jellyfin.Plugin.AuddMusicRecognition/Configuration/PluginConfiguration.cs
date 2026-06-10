@@ -45,7 +45,7 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     /// <summary>
     /// Gets or sets the AcoustID metadata request list.
     /// </summary>
-    public string AcoustIdMeta { get; set; } = "recordings,releasegroups,compress";
+    public string AcoustIdMeta { get; set; } = "recordings releasegroups compress";
 
     /// <summary>
     /// Gets or sets the AcoustID lookup endpoint.
