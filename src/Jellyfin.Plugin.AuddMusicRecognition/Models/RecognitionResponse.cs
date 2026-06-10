@@ -66,6 +66,11 @@ public sealed class RecognitionResponse
     public long? ClipDurationTicks { get; set; }
 
     /// <summary>
+    /// Gets or sets the extracted clip file size in bytes.
+    /// </summary>
+    public long? ClipSizeBytes { get; set; }
+
+    /// <summary>
     /// Creates a no-match response.
     /// </summary>
     /// <returns>The response.</returns>
