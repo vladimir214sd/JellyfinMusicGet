@@ -3,6 +3,7 @@ using Jellyfin.Plugin.AuddMusicRecognition.Middleware;
 using Jellyfin.Plugin.AuddMusicRecognition.Services;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
+using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -21,5 +22,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IAudioClipExtractor, FfmpegAudioClipExtractor>();
         serviceCollection.AddSingleton<IRecognitionService, RecognitionService>();
         serviceCollection.AddSingleton<IStartupFilter, WebOverlayStartupFilter>();
+        serviceCollection.AddSingleton<StartupService>();
+        serviceCollection.AddSingleton<IScheduledTask>(serviceProvider => serviceProvider.GetRequiredService<StartupService>());
     }
 }
