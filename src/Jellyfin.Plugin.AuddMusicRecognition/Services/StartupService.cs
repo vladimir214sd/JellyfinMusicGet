@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.AuddMusicRecognition.Web;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json.Linq;
 
 namespace Jellyfin.Plugin.AuddMusicRecognition.Services;
 
@@ -87,17 +87,35 @@ public sealed class StartupService : IScheduledTask
             return false;
         }
 
-        var payload = new JObject
-        {
-            { "id", "ad3000ca-4bcb-4b4d-a67f-b9a80cd81892" },
-            { "fileNamePattern", "index.html" },
-            { "callbackAssembly", GetType().Assembly.FullName },
-            { "callbackClass", typeof(IndexHtmlInjector).FullName },
-            { "callbackMethod", nameof(IndexHtmlInjector.FileTransformer) }
-        };
+        var parameterType = registerMethod.GetParameters().FirstOrDefault()?.ParameterType;
+        var parseMethod = parameterType?.GetMethod("Parse", [typeof(string)]);
 
-        registerMethod.Invoke(null, new object[] { payload });
-        _logger.LogInformation("Registered AudD Music Recognition web overlay with FileTransformation plugin.");
-        return true;
+        if (parseMethod is null)
+        {
+            _logger.LogInformation("FileTransformation RegisterTransformation payload parser not found. Falling back to direct index.html injection.");
+            return false;
+        }
+
+        var payloadJson = JsonSerializer.Serialize(new
+        {
+            id = "ad3000ca-4bcb-4b4d-a67f-b9a80cd81892",
+            fileNamePattern = "index.html",
+            callbackAssembly = GetType().Assembly.FullName,
+            callbackClass = typeof(IndexHtmlInjector).FullName,
+            callbackMethod = nameof(IndexHtmlInjector.FileTransformer)
+        });
+
+        try
+        {
+            var payload = parseMethod.Invoke(null, [payloadJson]);
+            registerMethod.Invoke(null, [payload]);
+            _logger.LogInformation("Registered AudD Music Recognition web overlay with FileTransformation plugin.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "FileTransformation registration failed. Falling back to direct index.html injection.");
+            return false;
+        }
     }
 }
