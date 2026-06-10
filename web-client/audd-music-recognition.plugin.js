@@ -500,23 +500,9 @@
 
         var songLink = readResponseValue(response, ['songLink', 'SongLink']);
         return songLink ? {
-            label: getSongLinkLabel(songLink),
+            label: 'AudD',
             url: songLink
         } : null;
-    }
-
-    function getSongLinkLabel(url) {
-        var value = String(url || '').toLowerCase();
-
-        if (value.indexOf('acoustid.org') >= 0) {
-            return 'AcoustID';
-        }
-
-        if (value.indexOf('shazam.com') >= 0) {
-            return 'Shazam';
-        }
-
-        return 'AudD';
     }
 
     function getTrackCopyText(response) {
@@ -1410,17 +1396,21 @@
 
                 var mediaSources = item.MediaSources || item.mediaSources || [];
                 var mediaSource = currentMediaSource || (mediaSources.length ? mediaSources[0] : {});
-                var mediaSourcePath = readResponseValue(mediaSource, ['Path', 'path'])
-                    || readResponseValue(item, ['Path', 'path']);
-
-                var itemId = item.Id || item.id || item.ItemId || item.itemId || fallback.itemId;
-                var mediaSourceId = item.MediaSourceId
-                    || item.mediaSourceId
-                    || playerInfo.mediaSourceId
-                    || playerInfo.MediaSourceId
-                    || mediaSource.Id
-                    || mediaSource.id
-                    || fallback.mediaSourceId
+                var managerItemId = item.Id || item.id || item.ItemId || item.itemId;
+                var itemId = fallback.itemId || managerItemId;
+                var managerContextIsCurrent = !fallback.itemId
+                    || !managerItemId
+                    || areIdsEqual(fallback.itemId, managerItemId);
+                var mediaSourcePath = managerContextIsCurrent
+                    ? readResponseValue(mediaSource, ['Path', 'path']) || readResponseValue(item, ['Path', 'path'])
+                    : null;
+                var mediaSourceId = fallback.mediaSourceId
+                    || (managerContextIsCurrent ? item.MediaSourceId : null)
+                    || (managerContextIsCurrent ? item.mediaSourceId : null)
+                    || (managerContextIsCurrent ? playerInfo.mediaSourceId : null)
+                    || (managerContextIsCurrent ? playerInfo.MediaSourceId : null)
+                    || (managerContextIsCurrent ? mediaSource.Id : null)
+                    || (managerContextIsCurrent ? mediaSource.id : null)
                     || defaultMediaSourceId(itemId);
 
                 return {
@@ -1429,17 +1419,15 @@
                     mediaSourcePath: isLocalMediaPath(mediaSourcePath) ? mediaSourcePath : null,
                     positionTicks: normalizeTicks(position, video ? video.currentTime : null),
                     audioStreamIndex: pickFirstValue([
-                        statePlayState.AudioStreamIndex,
-                        statePlayState.audioStreamIndex,
-                        playerInfo.audioStreamIndex,
-                        playerInfo.AudioStreamIndex,
-                        mediaSource.DefaultAudioStreamIndex,
-                        mediaSource.defaultAudioStreamIndex,
-                        mediaSource.AudioStreamIndex,
-                        mediaSource.audioStreamIndex,
                         fallback.audioStreamIndex,
-                        mediaSource.DefaultAudioStreamIndex,
-                        mediaSource.defaultAudioStreamIndex
+                        managerContextIsCurrent ? statePlayState.AudioStreamIndex : null,
+                        managerContextIsCurrent ? statePlayState.audioStreamIndex : null,
+                        managerContextIsCurrent ? playerInfo.audioStreamIndex : null,
+                        managerContextIsCurrent ? playerInfo.AudioStreamIndex : null,
+                        managerContextIsCurrent ? mediaSource.DefaultAudioStreamIndex : null,
+                        managerContextIsCurrent ? mediaSource.defaultAudioStreamIndex : null,
+                        managerContextIsCurrent ? mediaSource.AudioStreamIndex : null,
+                        managerContextIsCurrent ? mediaSource.audioStreamIndex : null
                     ])
                 };
             }
@@ -1472,7 +1460,7 @@
 
             cacheKey(context) {
                 var roundedSeconds = Math.round((context.positionTicks / TICKS_PER_SECOND) / 10) * 10;
-                return context.itemId + ':' + roundedSeconds;
+                return [context.itemId, context.mediaSourceId || '', roundedSeconds].join(':');
             }
 
             mediaIdentity(context) {
