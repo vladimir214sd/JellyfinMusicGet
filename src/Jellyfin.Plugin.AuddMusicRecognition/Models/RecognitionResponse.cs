@@ -46,6 +46,11 @@ public sealed class RecognitionResponse
     public string? AppleMusicUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets album artwork URL when returned by a metadata provider.
+    /// </summary>
+    public string? AlbumArtUrl { get; set; }
+
+    /// <summary>
     /// Gets or sets the optional confidence value, when a provider supplies one.
     /// </summary>
     public double? Confidence { get; set; }
