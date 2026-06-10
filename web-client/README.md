@@ -16,5 +16,6 @@ It is injected into Jellyfin Web by `WebOverlayInjectionMiddleware` with a uniqu
 
 - Adds a compact overlay in the top-right of the active video player.
 - Sends `itemId`, `mediaSourceId`, `positionTicks`, and `audioStreamIndex` to `POST /Plugins/AuddMusicRecognition/Recognize`.
+- Falls back to Jellyfin video/HLS URLs when the Jellyfin Web playback manager is not exposed as a window global.
 - Caches results in memory by item id and rounded 10-second playback position.
 - Shows loading, recognized track, no match, and error states.
