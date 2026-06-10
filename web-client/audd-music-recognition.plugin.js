@@ -1152,6 +1152,7 @@
                 this.ensureOverlay = this.ensureOverlay.bind(this);
                 this.handleTrigger = this.handleTrigger.bind(this);
                 this.handleCopyText = this.handleCopyText.bind(this);
+                this.handlePlaybackPositionChange = this.handlePlaybackPositionChange.bind(this);
                 this.stopOverlayEvent = this.stopOverlayEvent.bind(this);
                 this.runRecognition = this.runRecognition.bind(this);
 
@@ -1398,6 +1399,9 @@
                     this.currentVideo.removeEventListener('durationchange', this.ensureOverlay);
                     this.currentVideo.removeEventListener('canplay', this.ensureOverlay);
                     this.currentVideo.removeEventListener('loadedmetadata', this.ensureOverlay);
+                    this.currentVideo.removeEventListener('seeking', this.handlePlaybackPositionChange);
+                    this.currentVideo.removeEventListener('seeked', this.handlePlaybackPositionChange);
+                    this.currentVideo.removeEventListener('timeupdate', this.handlePlaybackPositionChange);
                 }
 
                 this.currentVideo = video || null;
@@ -1412,6 +1416,32 @@
                     this.currentVideo.addEventListener('durationchange', this.ensureOverlay);
                     this.currentVideo.addEventListener('canplay', this.ensureOverlay);
                     this.currentVideo.addEventListener('loadedmetadata', this.ensureOverlay);
+                    this.currentVideo.addEventListener('seeking', this.handlePlaybackPositionChange);
+                    this.currentVideo.addEventListener('seeked', this.handlePlaybackPositionChange);
+                    this.currentVideo.addEventListener('timeupdate', this.handlePlaybackPositionChange);
+                }
+            }
+
+            handlePlaybackPositionChange(event) {
+                var video = event && event.currentTarget ? event.currentTarget : this.currentVideo;
+                if (!video || !Number.isFinite(Number(video.currentTime))) {
+                    return;
+                }
+
+                var referenceContext = this.lastResponseContext || this.lastStatusContext;
+                if (!referenceContext) {
+                    return;
+                }
+
+                var context = {
+                    itemId: referenceContext.itemId,
+                    mediaSourceId: referenceContext.mediaSourceId || '',
+                    positionTicks: Math.round(Number(video.currentTime) * TICKS_PER_SECOND)
+                };
+
+                if (this.isRecognitionDisplayStale(context)) {
+                    this.setResult('');
+                    this.setDebug('');
                 }
             }
 
