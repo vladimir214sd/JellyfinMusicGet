@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using Jellyfin.Plugin.AuddMusicRecognition.Models;
 using MediaBrowser.Common.Net;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AuddMusicRecognition.Web;
 
@@ -36,7 +37,7 @@ public static partial class IndexHtmlInjector
             return;
         }
 
-        var webPath = plugin.ApplicationPaths.WebPath;
+        var webPath = plugin.ViewableApplicationPaths.WebPath;
         if (string.IsNullOrWhiteSpace(webPath))
         {
             plugin.Logger.LogWarning("Jellyfin Web path is empty; cannot inject AudD Music Recognition overlay.");
