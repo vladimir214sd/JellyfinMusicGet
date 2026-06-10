@@ -1125,6 +1125,7 @@
 
                 if (this.currentVideo) {
                     this.currentVideo.removeEventListener('play', this.ensureOverlay);
+                    this.currentVideo.removeEventListener('playing', this.ensureOverlay);
                     this.currentVideo.removeEventListener('pause', this.ensureOverlay);
                     this.currentVideo.removeEventListener('ended', this.ensureOverlay);
                     this.currentVideo.removeEventListener('emptied', this.ensureOverlay);
@@ -1135,6 +1136,7 @@
 
                 if (this.currentVideo) {
                     this.currentVideo.addEventListener('play', this.ensureOverlay);
+                    this.currentVideo.addEventListener('playing', this.ensureOverlay);
                     this.currentVideo.addEventListener('pause', this.ensureOverlay);
                     this.currentVideo.addEventListener('ended', this.ensureOverlay);
                     this.currentVideo.addEventListener('emptied', this.ensureOverlay);
@@ -1143,7 +1145,60 @@
             }
 
             isPauseMenuAvailable(video) {
-                return !!video && (video.paused || video.ended);
+                if (!video) {
+                    return false;
+                }
+
+                if (!video.paused && !video.ended) {
+                    return false;
+                }
+
+                var playbackPaused = this.getPlaybackPausedState();
+                if (playbackPaused === true) {
+                    return true;
+                }
+
+                if (playbackPaused === false) {
+                    return false;
+                }
+
+                return video.paused || video.ended;
+            }
+
+            getPlaybackPausedState() {
+                var playbackManager = this.dependencies.playbackManager || window.playbackManager || window.PlaybackManager;
+                var player = firstFunctionResult([
+                    function () { return playbackManager && playbackManager.getCurrentPlayer ? playbackManager.getCurrentPlayer() : null; },
+                    function () { return playbackManager && playbackManager.currentPlayer ? playbackManager.currentPlayer() : null; }
+                ]);
+
+                var playerInfo = firstFunctionResult([
+                    function () { return playbackManager && playbackManager.getPlayerInfo ? playbackManager.getPlayerInfo() : null; },
+                    function () { return playbackManager && playbackManager.getPlayerState ? playbackManager.getPlayerState() : null; }
+                ]) || {};
+
+                var playState = playerInfo.PlayState || playerInfo.playState || {};
+                var paused = pickFirstValue([
+                    playState.IsPaused,
+                    playState.isPaused,
+                    playerInfo.IsPaused,
+                    playerInfo.isPaused,
+                    player && typeof player.paused === 'boolean' ? player.paused : null,
+                    firstFunctionResult([
+                        function () { return playbackManager && typeof playbackManager.paused === 'function' ? playbackManager.paused(player) : null; },
+                        function () { return playbackManager && typeof playbackManager.isPaused === 'function' ? playbackManager.isPaused(player) : null; }
+                    ])
+                ]);
+
+                if (typeof paused === 'boolean') {
+                    return paused;
+                }
+
+                if (typeof paused === 'string') {
+                    return paused.toLowerCase() === 'true';
+                }
+
+                return null;
             }
 
             findPlayerRoot(video) {
