@@ -684,6 +684,37 @@
         return Promise.resolve(null);
     }
 
+    function getDeviceIdFromValue(value) {
+        if (!value) {
+            return null;
+        }
+
+        if (typeof value === 'string') {
+            return value;
+        }
+
+        return value.DeviceId || value.deviceId || value.Id || value.id || null;
+    }
+
+    function getCurrentDeviceIdAsync() {
+        var apiClient = window.ApiClient;
+        var value = firstFunctionResult([
+            function () { return apiClient && typeof apiClient.deviceId === 'function' ? apiClient.deviceId() : null; },
+            function () { return apiClient && typeof apiClient.getDeviceId === 'function' ? apiClient.getDeviceId() : null; },
+            function () { return apiClient ? apiClient._deviceId || apiClient.deviceId : null; },
+            function () { return apiClient && apiClient._serverInfo ? apiClient._serverInfo.DeviceId || apiClient._serverInfo.deviceId : null; },
+            function () { return apiClient && typeof apiClient.serverInfo === 'function' ? apiClient.serverInfo() : null; }
+        ]);
+
+        if (value && typeof value.then === 'function') {
+            return value.then(getDeviceIdFromValue).catch(function () {
+                return null;
+            });
+        }
+
+        return Promise.resolve(getDeviceIdFromValue(value));
+    }
+
     function readArrayValue(value, names) {
         for (var i = 0; i < names.length; i += 1) {
             if (value && Array.isArray(value[names[i]])) {
@@ -716,10 +747,14 @@
         return 'Items/' + encodeURIComponent(itemId) + '/PlaybackInfo' + query;
     }
 
-    function getSessionsUrl(userId) {
+    function getSessionsUrl(userId, deviceId) {
         var query = ['activeWithinSeconds=60'];
         if (userId && typeof userId !== 'object') {
             query.unshift('controllableByUserId=' + encodeURIComponent(String(userId)));
+        }
+
+        if (deviceId && typeof deviceId !== 'object') {
+            query.unshift('deviceId=' + encodeURIComponent(String(deviceId)));
         }
 
         return 'Sessions?' + query.join('&');
@@ -772,32 +807,51 @@
         return context;
     }
 
-    function choosePlaybackSession(context, sessions) {
+    function choosePlaybackSession(context, sessions, userId, deviceId) {
         var values = Array.isArray(sessions) ? sessions : [];
-        var selected = null;
-
-        values.some(function (session) {
+        var candidates = values.map(function (session, index) {
             var playState = readObjectValue(session, ['PlayState', 'playState']) || {};
             var nowPlayingItem = readObjectValue(session, ['NowPlayingItem', 'nowPlayingItem']) || {};
             var sessionItemId = readResponseValue(session, ['ItemId', 'itemId'])
                 || readResponseValue(nowPlayingItem, ['Id', 'id', 'ItemId', 'itemId']);
             var sessionMediaSourceId = readResponseValue(playState, ['MediaSourceId', 'mediaSourceId'])
                 || readResponseValue(session, ['MediaSourceId', 'mediaSourceId']);
+            var sessionDeviceId = readResponseValue(session, ['DeviceId', 'deviceId']);
+            var sessionUserId = readResponseValue(session, ['UserId', 'userId']);
+            var lastPlaybackCheckIn = readResponseValue(session, ['LastPlaybackCheckIn', 'lastPlaybackCheckIn']);
+            var score = index;
 
-            if (areIdsEqual(sessionItemId, context.itemId)) {
-                selected = session;
-                return true;
+            if (!sessionItemId) {
+                return null;
             }
 
-            if (context.mediaSourceId && sessionMediaSourceId && areIdsEqual(sessionMediaSourceId, context.mediaSourceId)) {
-                selected = session;
-                return true;
+            if (deviceId && areIdsEqual(sessionDeviceId, deviceId)) {
+                score += 10000;
             }
 
-            return false;
+            if (userId && areIdsEqual(sessionUserId, userId)) {
+                score += 2000;
+            }
+
+            if (context && areIdsEqual(sessionItemId, context.itemId)) {
+                score += 500;
+            }
+
+            if (context && context.mediaSourceId && sessionMediaSourceId && areIdsEqual(sessionMediaSourceId, context.mediaSourceId)) {
+                score += 250;
+            }
+
+            var checkInTime = Date.parse(lastPlaybackCheckIn || '');
+            if (Number.isFinite(checkInTime)) {
+                score += checkInTime / 10000000000000;
+            }
+
+            return { session: session, score: score };
+        }).filter(Boolean).sort(function (first, second) {
+            return second.score - first.score;
         });
 
-        return selected;
+        return candidates.length ? candidates[0].session : null;
     }
 
     function mergeSessionPlaybackContext(context, session) {
@@ -807,16 +861,30 @@
 
         var playState = readObjectValue(session, ['PlayState', 'playState']) || {};
         var nowPlayingItem = readObjectValue(session, ['NowPlayingItem', 'nowPlayingItem']) || {};
+        var sessionItemId = readResponseValue(session, ['ItemId', 'itemId'])
+            || readResponseValue(nowPlayingItem, ['Id', 'id', 'ItemId', 'itemId']);
         var sessionMediaSourceId = readResponseValue(playState, ['MediaSourceId', 'mediaSourceId'])
             || readResponseValue(session, ['MediaSourceId', 'mediaSourceId']);
-        var sessionAudioStreamIndex = readResponseValue(playState, ['AudioStreamIndex', 'audioStreamIndex'])
-            || readResponseValue(session, ['AudioStreamIndex', 'audioStreamIndex']);
+        var sessionAudioStreamIndex = pickFirstValue([
+            readResponseValue(playState, ['AudioStreamIndex', 'audioStreamIndex']),
+            readResponseValue(session, ['AudioStreamIndex', 'audioStreamIndex'])
+        ]);
         var itemPath = readResponseValue(nowPlayingItem, ['Path', 'path']);
+
+        if (sessionItemId && !areIdsEqual(context.itemId, sessionItemId)) {
+            context.itemId = sessionItemId;
+            context.mediaSourceId = null;
+            context.mediaSourcePath = null;
+            context.audioStreamIndex = null;
+        } else if (sessionMediaSourceId && context.mediaSourceId && !areIdsEqual(context.mediaSourceId, sessionMediaSourceId)) {
+            context.mediaSourcePath = null;
+            context.audioStreamIndex = null;
+        }
 
         context.mediaSourceId = sessionMediaSourceId || context.mediaSourceId;
         context.audioStreamIndex = pickFirstValue([
-            context.audioStreamIndex,
-            sessionAudioStreamIndex
+            sessionAudioStreamIndex,
+            context.audioStreamIndex
         ]);
 
         mergePlaybackInfo(context, nowPlayingItem);
@@ -828,30 +896,88 @@
         return context;
     }
 
-    function fetchPlaybackSessions(userId) {
-        return apiGetJson(getSessionsUrl(userId), 6000).catch(function (error) {
-            if (userId) {
-                return apiGetJson(getSessionsUrl(null), 6000);
+    function fetchPlaybackSessions(userId, deviceId) {
+        var urls = [
+            getSessionsUrl(userId, deviceId),
+            getSessionsUrl(userId, null),
+            getSessionsUrl(null, null)
+        ].filter(function (value, index, array) {
+            return array.indexOf(value) === index;
+        });
+
+        function tryNext(index, lastError) {
+            if (index >= urls.length) {
+                return lastError ? Promise.reject(lastError) : Promise.resolve([]);
             }
 
-            throw error;
-        });
+            return apiGetJson(urls[index], 6000).then(function (sessions) {
+                return Array.isArray(sessions) && sessions.length
+                    ? sessions
+                    : tryNext(index + 1, lastError);
+            }).catch(function (error) {
+                return tryNext(index + 1, error);
+            });
+        }
+
+        return tryNext(0, null);
     }
 
     function getActiveVideo() {
-        var videos = document.querySelectorAll('video');
-        for (var i = 0; i < videos.length; i += 1) {
-            if (videos[i].getClientRects().length > 0) {
-                return videos[i];
+        var videos = asArray(document.querySelectorAll('video'));
+        var pictureInPictureVideo = document.pictureInPictureElement;
+
+        function scoreVideo(video, index) {
+            var score = index;
+            var rect;
+            var style;
+
+            if (video === pictureInPictureVideo) {
+                score += 100000;
             }
+
+            try {
+                rect = video.getBoundingClientRect();
+                style = window.getComputedStyle(video);
+                if (rect.width > 1 && rect.height > 1 && style.display !== 'none' && style.visibility !== 'hidden') {
+                    score += 10000 + Math.min((rect.width * rect.height) / 1000, 1000);
+                }
+            } catch (_) {
+            }
+
+            if (!video.paused) {
+                score += 5000;
+            }
+
+            if (video.currentSrc || video.src) {
+                score += 1000;
+            }
+
+            if (video.readyState >= 1) {
+                score += 500;
+            }
+
+            if (video.networkState !== 3) {
+                score += 100;
+            }
+
+            if (!video.ended) {
+                score += 50;
+            }
+
+            return score;
         }
 
-        return videos.length ? videos[0] : null;
+        return videos.map(function (video, index) {
+            return { video: video, score: scoreVideo(video, index) };
+        }).sort(function (first, second) {
+            return second.score - first.score;
+        }).map(function (entry) {
+            return entry.video;
+        })[0] || null;
     }
 
     function collectPlaybackUrls(video) {
         var directUrls = [];
-        var resourceUrls = [];
 
         if (video) {
             directUrls.push(video.currentSrc, video.src);
@@ -860,30 +986,26 @@
             });
         }
 
-        asArray(document.querySelectorAll('video source, audio source')).forEach(function (source) {
-            directUrls.push(source.src);
-        });
-
-        try {
-            asArray(window.performance && typeof window.performance.getEntriesByType === 'function'
-                ? window.performance.getEntriesByType('resource')
-                : []).filter(function (entry) {
-                return entry && entry.name && /\/(?:Videos|Audio|Items)\//i.test(entry.name);
-            }).sort(function (a, b) {
-                return (b.startTime || 0) - (a.startTime || 0);
-            }).forEach(function (entry) {
-                if (entry && entry.name) {
-                    resourceUrls.push(entry.name);
-                }
-            });
-        } catch (_) {
-        }
-
         directUrls.push(window.location.href);
 
-        return directUrls.concat(resourceUrls).filter(function (value, index, array) {
+        return directUrls.filter(function (value, index, array) {
             return value && array.indexOf(value) === index;
         });
+    }
+
+    var playbackElementSequence = 0;
+
+    function getVideoPlaybackIdentity(video) {
+        if (!video) {
+            return null;
+        }
+
+        if (!video.__auddPlaybackElementId) {
+            playbackElementSequence += 1;
+            video.__auddPlaybackElementId = playbackElementSequence;
+        }
+
+        return [video.__auddPlaybackElementId, video.currentSrc || video.src || ''].join(':');
     }
 
     function addParamsFromQuery(params, query) {
@@ -1018,6 +1140,7 @@
                 this.lastStatusClearMode = null;
                 this.currentRoot = null;
                 this.currentVideo = null;
+                this.currentVideoPlaybackIdentity = null;
                 this.currentMediaIdentity = null;
                 this.lastTriggerAt = 0;
                 this.requestSequence = 0;
@@ -1271,6 +1394,9 @@
                     this.currentVideo.removeEventListener('pause', this.ensureOverlay);
                     this.currentVideo.removeEventListener('ended', this.ensureOverlay);
                     this.currentVideo.removeEventListener('emptied', this.ensureOverlay);
+                    this.currentVideo.removeEventListener('loadstart', this.ensureOverlay);
+                    this.currentVideo.removeEventListener('durationchange', this.ensureOverlay);
+                    this.currentVideo.removeEventListener('canplay', this.ensureOverlay);
                     this.currentVideo.removeEventListener('loadedmetadata', this.ensureOverlay);
                 }
 
@@ -1282,6 +1408,9 @@
                     this.currentVideo.addEventListener('pause', this.ensureOverlay);
                     this.currentVideo.addEventListener('ended', this.ensureOverlay);
                     this.currentVideo.addEventListener('emptied', this.ensureOverlay);
+                    this.currentVideo.addEventListener('loadstart', this.ensureOverlay);
+                    this.currentVideo.addEventListener('durationchange', this.ensureOverlay);
+                    this.currentVideo.addEventListener('canplay', this.ensureOverlay);
                     this.currentVideo.addEventListener('loadedmetadata', this.ensureOverlay);
                 }
             }
@@ -1433,25 +1562,32 @@
             }
 
             async enrichPlaybackContext(context) {
-                if (!context || !context.itemId) {
+                if (!context) {
                     return context;
                 }
 
-                var userId = await getCurrentUserIdAsync();
+                var identity = await Promise.all([
+                    getCurrentUserIdAsync(),
+                    getCurrentDeviceIdAsync()
+                ]);
+                var userId = identity[0];
+                var deviceId = identity[1];
+
+                try {
+                    var sessions = await fetchPlaybackSessions(userId, deviceId);
+                    mergeSessionPlaybackContext(
+                        context,
+                        choosePlaybackSession(context, sessions, userId, deviceId));
+                } catch (_) {
+                }
+
+                if (!context.itemId) {
+                    return context;
+                }
 
                 try {
                     var playbackInfo = await apiGetJson(getPlaybackInfoUrl(context.itemId, userId), 6000);
                     mergePlaybackInfo(context, playbackInfo);
-                } catch (_) {
-                }
-
-                if (context.mediaSourcePath) {
-                    return context;
-                }
-
-                try {
-                    var sessions = await fetchPlaybackSessions(userId);
-                    mergeSessionPlaybackContext(context, choosePlaybackSession(context, sessions));
                 } catch (_) {
                 }
 
@@ -1473,6 +1609,20 @@
 
             syncPlaybackIdentity() {
                 var context;
+                var video = getActiveVideo();
+                var videoPlaybackIdentity = getVideoPlaybackIdentity(video);
+
+                if (!this.currentVideoPlaybackIdentity) {
+                    this.currentVideoPlaybackIdentity = videoPlaybackIdentity;
+                } else if (videoPlaybackIdentity && this.currentVideoPlaybackIdentity !== videoPlaybackIdentity) {
+                    this.currentVideoPlaybackIdentity = videoPlaybackIdentity;
+                    this.currentMediaIdentity = null;
+                    this.requestSequence += 1;
+                    this.setBusy(false);
+                    this.setResult('');
+                    this.setDebug('');
+                }
+
                 try {
                     context = this.getPlaybackContext();
                 } catch (_) {
@@ -1480,13 +1630,15 @@
                 }
 
                 var identity = this.mediaIdentity(context);
+                var directContext = getPlaybackContextFromUrls(video);
+                var hasReliableItemId = Boolean(directContext.itemId);
                 if (!identity) {
                     return;
                 }
 
                 if (!this.currentMediaIdentity) {
                     this.currentMediaIdentity = identity;
-                } else if (this.currentMediaIdentity !== identity) {
+                } else if (hasReliableItemId && this.currentMediaIdentity !== identity) {
                     this.currentMediaIdentity = identity;
                     this.requestSequence += 1;
                     this.setBusy(false);
@@ -1767,12 +1919,12 @@
                     return;
                 }
 
+                context = await this.enrichPlaybackContext(context);
+
                 if (!context.itemId) {
                     this.setResult('No item id');
                     return;
                 }
-
-                context = await this.enrichPlaybackContext(context);
 
                 var identity = this.mediaIdentity(context);
                 this.currentMediaIdentity = identity || this.currentMediaIdentity;
