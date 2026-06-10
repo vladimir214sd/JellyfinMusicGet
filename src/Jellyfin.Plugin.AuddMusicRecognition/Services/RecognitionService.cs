@@ -23,6 +23,7 @@ public sealed class RecognitionService : IRecognitionService
     private readonly IAudioClipExtractor _audioClipExtractor;
     private readonly IAuddClient _auddClient;
     private readonly IShazamClient _shazamClient;
+    private readonly IAcoustIdClient _acoustIdClient;
     private readonly IMediaSourceManager _mediaSourceManager;
     private readonly ILogger<RecognitionService> _logger;
 
@@ -32,18 +33,21 @@ public sealed class RecognitionService : IRecognitionService
     /// <param name="audioClipExtractor">Audio clip extractor.</param>
     /// <param name="auddClient">AudD client.</param>
     /// <param name="shazamClient">Shazam client.</param>
+    /// <param name="acoustIdClient">AcoustID client.</param>
     /// <param name="mediaSourceManager">Jellyfin media source manager.</param>
     /// <param name="logger">Logger.</param>
     public RecognitionService(
         IAudioClipExtractor audioClipExtractor,
         IAuddClient auddClient,
         IShazamClient shazamClient,
+        IAcoustIdClient acoustIdClient,
         IMediaSourceManager mediaSourceManager,
         ILogger<RecognitionService> logger)
     {
         _audioClipExtractor = audioClipExtractor;
         _auddClient = auddClient;
         _shazamClient = shazamClient;
+        _acoustIdClient = acoustIdClient;
         _mediaSourceManager = mediaSourceManager;
         _logger = logger;
     }
@@ -60,6 +64,13 @@ public sealed class RecognitionService : IRecognitionService
             if (string.IsNullOrWhiteSpace(configuration.ShazamRapidApiKey))
             {
                 return RecognitionResponse.Error("Shazam RapidAPI key is not configured.");
+            }
+        }
+        else if (IsAcoustIdProvider(configuration))
+        {
+            if (string.IsNullOrWhiteSpace(configuration.AcoustIdApiKey))
+            {
+                return RecognitionResponse.Error("AcoustID API key is not configured.");
             }
         }
         else if (string.IsNullOrWhiteSpace(configuration.AuddApiToken))
@@ -141,13 +152,21 @@ public sealed class RecognitionService : IRecognitionService
         PluginConfiguration configuration,
         CancellationToken cancellationToken)
     {
-        return IsShazamProvider(configuration)
-            ? _shazamClient.RecognizeAsync(clipPath, configuration, cancellationToken)
-            : _auddClient.RecognizeAsync(
-                clipPath,
-                configuration.AuddApiToken,
-                configuration.ReturnMetadata,
-                cancellationToken);
+        if (IsShazamProvider(configuration))
+        {
+            return _shazamClient.RecognizeAsync(clipPath, configuration, cancellationToken);
+        }
+
+        if (IsAcoustIdProvider(configuration))
+        {
+            return _acoustIdClient.RecognizeAsync(clipPath, configuration, cancellationToken);
+        }
+
+        return _auddClient.RecognizeAsync(
+            clipPath,
+            configuration.AuddApiToken,
+            configuration.ReturnMetadata,
+            cancellationToken);
     }
 
     private static bool IsShazamProvider(PluginConfiguration configuration)
@@ -156,9 +175,20 @@ public sealed class RecognitionService : IRecognitionService
             || string.Equals(configuration.RecognitionProvider, "ShazamRapidApi", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsAcoustIdProvider(PluginConfiguration configuration)
+    {
+        return string.Equals(configuration.RecognitionProvider, "AcoustId", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(configuration.RecognitionProvider, "AcoustID", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string GetRecognitionProviderName(PluginConfiguration configuration)
     {
-        return IsShazamProvider(configuration) ? "Shazam" : "AudD";
+        if (IsShazamProvider(configuration))
+        {
+            return "Shazam";
+        }
+
+        return IsAcoustIdProvider(configuration) ? "AcoustID" : "AudD";
     }
 
     private async Task<string?> ResolveLocalMediaPathAsync(BaseItem item, RecognitionRequest request, CancellationToken cancellationToken)
