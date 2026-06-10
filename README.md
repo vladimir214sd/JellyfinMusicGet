@@ -30,6 +30,8 @@ The server plugin automatically injects the player overlay into Jellyfin Web whe
 
 The injector uses a unique `data-audd-music-recognition="player-overlay"` marker and `auddRecognition*` CSS classes, so it does not modify Intro Skipper classes, media segment buttons, or branding CSS. `web-client/audd-music-recognition.plugin.js` is kept as the source asset that gets embedded into the plugin DLL.
 
+Enable `Show sent clip test data in player overlay` in plugin settings to show the extracted clip duration and uploaded file size next to the player button.
+
 ## GitHub Release Repository
 
 This repository includes a Jellyfin repository manifest and a GitHub Actions release workflow.
