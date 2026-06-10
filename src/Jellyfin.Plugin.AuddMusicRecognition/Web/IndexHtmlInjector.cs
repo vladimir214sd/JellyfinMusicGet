@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using Jellyfin.Plugin.AuddMusicRecognition.Models;
 using MediaBrowser.Common.Net;
@@ -14,6 +15,8 @@ namespace Jellyfin.Plugin.AuddMusicRecognition.Web;
 public static partial class IndexHtmlInjector
 {
     private const string ScriptRegexPattern = """<script\s+[^>]*data-audd-music-recognition="player-overlay"[^>]*>\s*</script>""";
+    private const string OverlayScriptResource = "Jellyfin.Plugin.AuddMusicRecognition.Web.audd-music-recognition.plugin.js";
+    private const string BundleMarker = "/* audd-music-recognition-player-overlay */";
 
     /// <summary>
     /// Transforms index.html content when invoked by FileTransformation plugin.
@@ -23,7 +26,30 @@ public static partial class IndexHtmlInjector
     public static string FileTransformer(PatchRequestPayload payload)
     {
         var html = payload.Contents ?? string.Empty;
+
+        if (Plugin.Instance?.Configuration.EnableWebOverlay != true)
+        {
+            return html;
+        }
+
         return Inject(html);
+    }
+
+    /// <summary>
+    /// Transforms Jellyfin Web's main bundle as a fallback when index.html is cached or not transformed.
+    /// </summary>
+    /// <param name="payload">Transformation payload.</param>
+    /// <returns>Transformed JavaScript bundle contents.</returns>
+    public static string BundleTransformer(PatchRequestPayload payload)
+    {
+        var bundle = payload.Contents ?? string.Empty;
+
+        if (Plugin.Instance?.Configuration.EnableWebOverlay != true)
+        {
+            return bundle;
+        }
+
+        return AppendOverlayScript(bundle);
     }
 
     /// <summary>
@@ -95,7 +121,35 @@ public static partial class IndexHtmlInjector
     {
         var basePath = GetBasePath();
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0.0";
-        return $"<script data-audd-music-recognition=\"player-overlay\" version=\"{version}\" src=\"{basePath}/Plugins/AuddMusicRecognition/Web/audd-music-recognition.plugin.js\"></script>";
+        return $"<script data-audd-music-recognition=\"player-overlay\" version=\"{version}\" src=\"{basePath}/Plugins/AuddMusicRecognition/Web/audd-music-recognition.plugin.js?v={version}\" defer></script>";
+    }
+
+    private static string AppendOverlayScript(string bundle)
+    {
+        if (string.IsNullOrWhiteSpace(bundle) || bundle.Contains(BundleMarker, StringComparison.OrdinalIgnoreCase))
+        {
+            return bundle;
+        }
+
+        var script = ReadOverlayScript();
+        return string.IsNullOrWhiteSpace(script)
+            ? bundle
+            : $"{bundle}{Environment.NewLine};{BundleMarker}{Environment.NewLine}{script}{Environment.NewLine}";
+    }
+
+    private static string ReadOverlayScript()
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        using var stream = assembly.GetManifestResourceStream(OverlayScriptResource);
+
+        if (stream is null)
+        {
+            Plugin.Instance?.Logger.LogWarning("AudD Music Recognition overlay script resource was not found: {ResourceName}", OverlayScriptResource);
+            return string.Empty;
+        }
+
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
     }
 
     private static string GetBasePath()
