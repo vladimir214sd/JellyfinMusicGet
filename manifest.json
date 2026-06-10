@@ -8,6 +8,14 @@
     "category": "Music",
     "versions": [
       {
+        "version": "1.0.0.8",
+        "changelog": "Fix sticky overlay button with request timeout, improve current position detection, stop caching no-match responses, and add optional sent clip diagnostics.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/vladimir214sd/JellyfinMusicGet/releases/download/v1.0.0.8/audd-music-recognition_1.0.0.8.zip",
+        "checksum": "e6eb655be4b4b05e8cc3e406c999b723",
+        "timestamp": "2026-06-10T09:45:44Z"
+      },
+      {
         "version": "1.0.0.7",
         "changelog": "Fix overlay response parsing for PascalCase Jellyfin JSON, avoid caching errors, and add extraction/AudD diagnostics.",
         "targetAbi": "10.11.0.0",
