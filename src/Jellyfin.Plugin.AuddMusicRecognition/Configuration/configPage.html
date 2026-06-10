@@ -70,7 +70,7 @@
                     <div class="inputContainer acoustIdProviderField">
                         <label class="inputLabel inputLabelUnfocused" for="AcoustIdMeta">AcoustID metadata</label>
                         <input id="AcoustIdMeta" name="AcoustIdMeta" type="text" is="emby-input" />
-                        <div class="fieldDescription">Default: recordings,releasegroups,compress.</div>
+                        <div class="fieldDescription">Default: recordings releasegroups compress.</div>
                     </div>
 
                     <div class="inputContainer acoustIdProviderField">
@@ -178,7 +178,7 @@
                         document.querySelector('#AcoustIdApiKey').value = config.AcoustIdApiKey || '';
                         document.querySelector('#FpcalcPath').value = config.FpcalcPath || 'fpcalc';
                         document.querySelector('#AcoustIdMinimumScore').value = config.AcoustIdMinimumScore === undefined || config.AcoustIdMinimumScore === null ? 0.65 : config.AcoustIdMinimumScore;
-                        document.querySelector('#AcoustIdMeta').value = config.AcoustIdMeta || 'recordings,releasegroups,compress';
+                        document.querySelector('#AcoustIdMeta').value = config.AcoustIdMeta || 'recordings releasegroups compress';
                         document.querySelector('#AcoustIdEndpoint').value = config.AcoustIdEndpoint || 'https://api.acoustid.org/v2/lookup';
                         document.querySelector('#PreRollSeconds').value = config.PreRollSeconds || 5;
                         document.querySelector('#PostRollSeconds').value = config.PostRollSeconds || 8;
@@ -207,7 +207,7 @@
                         config.AcoustIdApiKey = document.querySelector('#AcoustIdApiKey').value || '';
                         config.FpcalcPath = document.querySelector('#FpcalcPath').value || 'fpcalc';
                         config.AcoustIdMinimumScore = auddNumberValue('#AcoustIdMinimumScore', 0.65);
-                        config.AcoustIdMeta = document.querySelector('#AcoustIdMeta').value || 'recordings,releasegroups,compress';
+                        config.AcoustIdMeta = document.querySelector('#AcoustIdMeta').value || 'recordings releasegroups compress';
                         config.AcoustIdEndpoint = document.querySelector('#AcoustIdEndpoint').value || 'https://api.acoustid.org/v2/lookup';
                         config.PreRollSeconds = auddNumberValue('#PreRollSeconds', 5);
                         config.PostRollSeconds = auddNumberValue('#PostRollSeconds', 8);
