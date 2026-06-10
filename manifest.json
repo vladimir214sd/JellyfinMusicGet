@@ -1,0 +1,11 @@
+[
+  {
+    "guid": "ad3000ca-4bcb-4b4d-a67f-b9a80cd81892",
+    "name": "AudD Music Recognition",
+    "description": "Recognize music playing inside Jellyfin videos by sending a short audio clip to the AudD API.",
+    "overview": "Recognize music in the Jellyfin player",
+    "owner": "custom",
+    "category": "Music",
+    "versions": []
+  }
+]
