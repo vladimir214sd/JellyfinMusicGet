@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.AuddMusicRecognition.Configuration;
@@ -44,40 +46,78 @@ public sealed class AcoustIdClient : IAcoustIdClient
         var fingerprint = await _audioFingerprinter
             .FingerprintAsync(clipPath, configuration.FpcalcPath, cancellationToken)
             .ConfigureAwait(false);
-        var endpoint = BuildLookupUri(configuration, fingerprint);
+        var endpoint = NormalizeEndpoint(configuration.AcoustIdEndpoint);
+        using var content = BuildLookupContent(configuration, fingerprint);
 
-        using var response = await _httpClient.GetAsync(endpoint, cancellationToken).ConfigureAwait(false);
-        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var response = await _httpClient.PostAsync(endpoint, content, cancellationToken).ConfigureAwait(false);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
         {
-            return RecognitionResponse.Error($"AcoustID request failed with HTTP {(int)response.StatusCode}.");
+            var error = GetErrorMessage(responseBody);
+            return RecognitionResponse.Error(
+                string.IsNullOrWhiteSpace(error)
+                    ? $"AcoustID request failed with HTTP {(int)response.StatusCode}."
+                    : $"AcoustID request failed with HTTP {(int)response.StatusCode}: {error}");
         }
 
-        return await AcoustIdRecognitionParser
-            .ParseAsync(responseStream, configuration.AcoustIdMinimumScore, cancellationToken)
-            .ConfigureAwait(false);
+        try
+        {
+            using var document = JsonDocument.Parse(responseBody);
+            return AcoustIdRecognitionParser.Parse(document.RootElement, configuration.AcoustIdMinimumScore);
+        }
+        catch (JsonException)
+        {
+            return RecognitionResponse.Error("AcoustID returned an invalid JSON response.");
+        }
     }
 
-    private static Uri BuildLookupUri(PluginConfiguration configuration, AudioFingerprint fingerprint)
+    private static FormUrlEncodedContent BuildLookupContent(
+        PluginConfiguration configuration,
+        AudioFingerprint fingerprint)
     {
-        var endpoint = NormalizeEndpoint(configuration.AcoustIdEndpoint);
         var duration = Math.Max(1, (int)Math.Round(fingerprint.DurationSeconds, MidpointRounding.AwayFromZero));
-        var query = new[]
-        {
-            QueryParameter("format", "json"),
-            QueryParameter("client", configuration.AcoustIdApiKey),
-            QueryParameter("duration", duration.ToString(CultureInfo.InvariantCulture)),
-            QueryParameter("fingerprint", fingerprint.Fingerprint),
-            QueryParameter("meta", NormalizeMeta(configuration.AcoustIdMeta))
-        };
+        return new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("format", "json"),
+            new KeyValuePair<string, string>("client", configuration.AcoustIdApiKey),
+            new KeyValuePair<string, string>("duration", duration.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string>("fingerprint", fingerprint.Fingerprint),
+            new KeyValuePair<string, string>("meta", NormalizeMeta(configuration.AcoustIdMeta))
+        ]);
+    }
 
-        var builder = new UriBuilder(endpoint)
+    private static string? GetErrorMessage(string responseBody)
+    {
+        if (string.IsNullOrWhiteSpace(responseBody))
         {
-            Query = string.Join("&", query)
-        };
+            return null;
+        }
 
-        return builder.Uri;
+        try
+        {
+            using var document = JsonDocument.Parse(responseBody);
+            var root = document.RootElement;
+            if (root.TryGetProperty("error", out var error))
+            {
+                if (error.ValueKind == JsonValueKind.Object
+                    && error.TryGetProperty("message", out var message))
+                {
+                    return message.GetString() ?? message.ToString();
+                }
+
+                return error.ValueKind == JsonValueKind.String ? error.GetString() : error.ToString();
+            }
+
+            return root.TryGetProperty("message", out var rootMessage)
+                ? rootMessage.GetString() ?? rootMessage.ToString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            var compact = responseBody.Trim();
+            return compact.Length <= 300 ? compact : compact[..300];
+        }
     }
 
     private static Uri NormalizeEndpoint(string? endpoint)
@@ -91,17 +131,12 @@ public sealed class AcoustIdClient : IAcoustIdClient
     {
         if (string.IsNullOrWhiteSpace(meta))
         {
-            return "recordings,releasegroups,compress";
+            return "recordings releasegroups compress";
         }
 
         return string.Join(
-            ",",
+            " ",
             meta.Split([',', ' ', '+'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Distinct(StringComparer.OrdinalIgnoreCase));
-    }
-
-    private static string QueryParameter(string name, string value)
-    {
-        return $"{Uri.EscapeDataString(name)}={Uri.EscapeDataString(value)}";
     }
 }
