@@ -410,7 +410,9 @@
                 this.result = null;
                 this.debug = null;
                 this.currentRoot = null;
+                this.currentMediaIdentity = null;
                 this.lastTriggerAt = 0;
+                this.requestSequence = 0;
                 this.isBusy = false;
                 this.settings = {
                     showDebugInfo: false,
@@ -493,6 +495,7 @@
 
                 var root = document.body;
                 if (this.overlay && this.currentRoot === root && root.contains(this.overlay)) {
+                    this.syncPlaybackIdentity();
                     return;
                 }
 
@@ -527,6 +530,7 @@
                 root.appendChild(this.overlay);
 
                 this.setBusy(this.isBusy);
+                this.syncPlaybackIdentity();
             }
 
             findPlayerRoot() {
@@ -608,6 +612,41 @@
                 return context.itemId + ':' + roundedSeconds;
             }
 
+            mediaIdentity(context) {
+                if (!context || !context.itemId) {
+                    return null;
+                }
+
+                return [context.itemId, context.mediaSourceId || ''].join(':');
+            }
+
+            syncPlaybackIdentity() {
+                var context;
+                try {
+                    context = this.getPlaybackContext();
+                } catch (_) {
+                    return;
+                }
+
+                var identity = this.mediaIdentity(context);
+                if (!identity) {
+                    return;
+                }
+
+                if (!this.currentMediaIdentity) {
+                    this.currentMediaIdentity = identity;
+                    return;
+                }
+
+                if (this.currentMediaIdentity !== identity) {
+                    this.currentMediaIdentity = identity;
+                    this.requestSequence += 1;
+                    this.setBusy(false);
+                    this.setResult('');
+                    this.setDebug('');
+                }
+            }
+
             setBusy(isBusy) {
                 this.isBusy = isBusy;
 
@@ -679,12 +718,17 @@
                     return;
                 }
 
+                var identity = this.mediaIdentity(context);
+                this.currentMediaIdentity = identity || this.currentMediaIdentity;
+
                 var key = this.cacheKey(context);
                 if (this.cache.has(key)) {
                     this.setResult(getText(this.cache.get(key)));
                     return;
                 }
 
+                var requestId = this.requestSequence + 1;
+                this.requestSequence = requestId;
                 this.setBusy(true);
                 this.setResult('Recognizing...');
 
@@ -696,6 +740,10 @@
                         audioStreamIndex: context.audioStreamIndex
                     }, this.settings.requestTimeoutMs);
 
+                    if (requestId !== this.requestSequence || (identity && identity !== this.currentMediaIdentity)) {
+                        return;
+                    }
+
                     if (shouldCacheResponse(response)) {
                         this.cache.set(key, response);
                     }
@@ -706,9 +754,15 @@
 
                     this.setResult(getText(response));
                 } catch (error) {
+                    if (requestId !== this.requestSequence || (identity && identity !== this.currentMediaIdentity)) {
+                        return;
+                    }
+
                     this.setResult(error && error.message ? error.message : 'Recognition failed');
                 } finally {
-                    this.setBusy(false);
+                    if (requestId === this.requestSequence) {
+                        this.setBusy(false);
+                    }
                 }
             }
         };
