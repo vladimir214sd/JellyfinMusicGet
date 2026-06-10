@@ -7,6 +7,7 @@ using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AuddMusicRecognition.Controllers;
 
@@ -20,16 +21,22 @@ public sealed class RecognitionController : ControllerBase
 {
     private readonly ILibraryManager _libraryManager;
     private readonly IRecognitionService _recognitionService;
+    private readonly ILogger<RecognitionController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RecognitionController"/> class.
     /// </summary>
     /// <param name="libraryManager">Jellyfin library manager.</param>
     /// <param name="recognitionService">Recognition service.</param>
-    public RecognitionController(ILibraryManager libraryManager, IRecognitionService recognitionService)
+    /// <param name="logger">Logger.</param>
+    public RecognitionController(
+        ILibraryManager libraryManager,
+        IRecognitionService recognitionService,
+        ILogger<RecognitionController> logger)
     {
         _libraryManager = libraryManager;
         _recognitionService = recognitionService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -46,20 +53,30 @@ public sealed class RecognitionController : ControllerBase
         [FromBody] RecognitionRequest request,
         CancellationToken cancellationToken)
     {
+        _logger.LogInformation(
+            "AudD recognition request received for item {ItemId}, media source {MediaSourceId}, position {PositionTicks}, audio stream {AudioStreamIndex}",
+            request.ItemId,
+            request.MediaSourceId,
+            request.PositionTicks,
+            request.AudioStreamIndex);
+
         if (request.ItemId == Guid.Empty)
         {
+            _logger.LogWarning("AudD recognition request rejected because item id is empty.");
             return BadRequest(RecognitionResponse.Error("ItemId is required."));
         }
 
         var plugin = Plugin.Instance;
         if (plugin is null)
         {
+            _logger.LogWarning("AudD recognition request rejected because plugin instance is not initialized.");
             return BadRequest(RecognitionResponse.Error("Plugin is not initialized."));
         }
 
         var item = _libraryManager.GetItemById(request.ItemId);
         if (item is null)
         {
+            _logger.LogWarning("AudD recognition request item was not found: {ItemId}", request.ItemId);
             return NotFound();
         }
 
@@ -68,6 +85,12 @@ public sealed class RecognitionController : ControllerBase
             request,
             plugin.Configuration,
             cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "AudD recognition completed for item {ItemId} with status {Status}: {StatusMessage}",
+            request.ItemId,
+            result.Status,
+            result.StatusMessage);
 
         return Ok(result);
     }
