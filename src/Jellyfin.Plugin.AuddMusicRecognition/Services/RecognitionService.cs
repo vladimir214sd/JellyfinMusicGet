@@ -56,7 +56,7 @@ public sealed class RecognitionService : IRecognitionService
             return RecognitionResponse.Error("AudD API token is not configured.");
         }
 
-        var sourcePath = await ResolveLocalMediaPathAsync(item, request.MediaSourceId, cancellationToken).ConfigureAwait(false);
+        var sourcePath = await ResolveLocalMediaPathAsync(item, request, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(sourcePath))
         {
             return RecognitionResponse.Error("Only local filesystem media can be recognized in v1. No readable local file path was found for the item or selected media source.");
@@ -118,8 +118,9 @@ public sealed class RecognitionService : IRecognitionService
         }
     }
 
-    private async Task<string?> ResolveLocalMediaPathAsync(BaseItem item, string? mediaSourceId, CancellationToken cancellationToken)
+    private async Task<string?> ResolveLocalMediaPathAsync(BaseItem item, RecognitionRequest request, CancellationToken cancellationToken)
     {
+        var mediaSourceId = request.MediaSourceId;
         var candidates = new List<MediaPathCandidate>();
         AddCandidate(candidates, null, item.Path);
 
@@ -132,6 +133,7 @@ public sealed class RecognitionService : IRecognitionService
         }
 
         AddMediaSourceCandidates(candidates, GetStaticMediaSources(item));
+        AddCandidate(candidates, mediaSourceId, request.MediaSourcePath);
 
         foreach (var lookupMediaSourceId in GetMediaSourceLookupIds(item, mediaSourceId, candidates).ToList())
         {
