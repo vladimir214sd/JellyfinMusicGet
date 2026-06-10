@@ -66,12 +66,9 @@ public sealed class RecognitionController : ControllerBase
             return BadRequest(RecognitionResponse.Error("Plugin is not initialized."));
         }
 
-        var provider = plugin.Configuration.RecognitionProvider;
-
         _logger.LogInformation(
-            "Music recognition request received for item {ItemId} with provider {RecognitionProvider}, media source {MediaSourceId}, playback info path supplied {HasMediaSourcePath}, position {PositionTicks}, audio stream {AudioStreamIndex}",
+            "AudD recognition request received for item {ItemId}, media source {MediaSourceId}, playback info path supplied {HasMediaSourcePath}, position {PositionTicks}, audio stream {AudioStreamIndex}",
             request.ItemId,
-            provider,
             request.MediaSourceId,
             !string.IsNullOrWhiteSpace(request.MediaSourcePath),
             request.PositionTicks,
@@ -91,9 +88,8 @@ public sealed class RecognitionController : ControllerBase
             cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
-            "Music recognition completed for item {ItemId} with provider {RecognitionProvider}, status {Status}: {StatusMessage}",
+            "AudD recognition completed for item {ItemId}, status {Status}: {StatusMessage}",
             request.ItemId,
-            provider,
             result.Status,
             result.StatusMessage);
 
