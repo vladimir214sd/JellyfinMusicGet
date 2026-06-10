@@ -18,6 +18,11 @@ public sealed class RecognitionRequest
     public string? MediaSourceId { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional local media source path from Jellyfin PlaybackInfo.
+    /// </summary>
+    public string? MediaSourcePath { get; set; }
+
+    /// <summary>
     /// Gets or sets the current playback position in Jellyfin ticks.
     /// </summary>
     public long PositionTicks { get; set; }
