@@ -17,6 +17,9 @@ namespace Jellyfin.Plugin.AuddMusicRecognition.Services;
 /// </summary>
 public sealed class StartupService : IScheduledTask
 {
+    private const string IndexHtmlTransformationId = "ad3000ca-4bcb-4b4d-a67f-b9a80cd81892";
+    private const string MainBundleTransformationId = "23a96b21-2fc9-4b25-9382-3c9db0e3c8cd";
+
     private readonly ILogger<StartupService> _logger;
 
     /// <summary>
@@ -96,20 +99,23 @@ public sealed class StartupService : IScheduledTask
             return false;
         }
 
-        var payloadJson = JsonSerializer.Serialize(new
-        {
-            id = "ad3000ca-4bcb-4b4d-a67f-b9a80cd81892",
-            fileNamePattern = "index.html",
-            callbackAssembly = GetType().Assembly.FullName,
-            callbackClass = typeof(IndexHtmlInjector).FullName,
-            callbackMethod = nameof(IndexHtmlInjector.FileTransformer)
-        });
-
         try
         {
-            var payload = parseMethod.Invoke(null, [payloadJson]);
-            registerMethod.Invoke(null, [payload]);
-            _logger.LogInformation("Registered AudD Music Recognition web overlay with FileTransformation plugin.");
+            RegisterTransformation(
+                parseMethod,
+                registerMethod,
+                IndexHtmlTransformationId,
+                "index.html",
+                nameof(IndexHtmlInjector.FileTransformer));
+
+            RegisterTransformation(
+                parseMethod,
+                registerMethod,
+                MainBundleTransformationId,
+                @"(?:^|/)main\.jellyfin\.bundle\.js$",
+                nameof(IndexHtmlInjector.BundleTransformer));
+
+            _logger.LogInformation("Registered AudD Music Recognition web overlay with FileTransformation plugin for index.html and main.jellyfin.bundle.js.");
             return true;
         }
         catch (Exception ex)
@@ -117,5 +123,20 @@ public sealed class StartupService : IScheduledTask
             _logger.LogWarning(ex, "FileTransformation registration failed. Falling back to direct index.html injection.");
             return false;
         }
+    }
+
+    private void RegisterTransformation(MethodInfo parseMethod, MethodInfo registerMethod, string id, string fileNamePattern, string callbackMethod)
+    {
+        var payloadJson = JsonSerializer.Serialize(new
+        {
+            id,
+            fileNamePattern,
+            callbackAssembly = GetType().Assembly.FullName,
+            callbackClass = typeof(IndexHtmlInjector).FullName,
+            callbackMethod
+        });
+
+        var payload = parseMethod.Invoke(null, [payloadJson]);
+        registerMethod.Invoke(null, [payload]);
     }
 }
