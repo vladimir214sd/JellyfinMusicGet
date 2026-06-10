@@ -8,6 +8,14 @@
     "category": "Music",
     "versions": [
       {
+        "version": "1.0.0.13",
+        "changelog": "Recover missing media source id and improve local path diagnostics.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/vladimir214sd/JellyfinMusicGet/releases/download/v1.0.0.13/audd-music-recognition_1.0.0.13.zip",
+        "checksum": "0c25153b750cecd67cd2a0d8047dcd71",
+        "timestamp": "2026-06-10T12:05:49Z"
+      },
+      {
         "version": "1.0.0.12",
         "changelog": "Resolve local source path from Jellyfin media sources and make overlay text copyable.",
         "targetAbi": "10.11.0.0",
