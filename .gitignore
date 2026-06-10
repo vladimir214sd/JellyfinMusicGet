@@ -1,0 +1,13 @@
+bin/
+obj/
+TestResults/
+coverage/
+.vs/
+.idea/
+*.user
+*.suo
+*.nupkg
+*.snupkg
+*.log
+node_modules/
+token.txt
