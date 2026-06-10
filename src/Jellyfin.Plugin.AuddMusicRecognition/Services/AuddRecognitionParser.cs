@@ -69,6 +69,7 @@ internal static class AuddRecognitionParser
             SongLink = GetString(match, "song_link"),
             SpotifyUrl = GetNestedString(match, "spotify", "external_urls", "spotify"),
             AppleMusicUrl = GetNestedString(match, "apple_music", "url"),
+            AlbumArtUrl = GetAlbumArtUrl(match),
             Confidence = GetDouble(match, "confidence"),
             StatusMessage = "Recognized"
         };
@@ -102,6 +103,43 @@ internal static class AuddRecognitionParser
         }
 
         return property.TryGetDouble(out var value) ? value : null;
+    }
+
+    private static string? GetAlbumArtUrl(JsonElement match)
+    {
+        return GetSpotifyAlbumArtUrl(match)
+            ?? NormalizeAppleArtworkUrl(GetNestedString(match, "apple_music", "artwork", "url"))
+            ?? NormalizeAppleArtworkUrl(GetNestedString(match, "apple_music", "attributes", "artwork", "url"));
+    }
+
+    private static string? GetSpotifyAlbumArtUrl(JsonElement match)
+    {
+        if (!match.TryGetProperty("spotify", out var spotify)
+            || !spotify.TryGetProperty("album", out var album)
+            || !album.TryGetProperty("images", out var images)
+            || images.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var image in images.EnumerateArray())
+        {
+            var url = GetString(image, "url");
+            if (!string.IsNullOrWhiteSpace(url))
+            {
+                return url;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? NormalizeAppleArtworkUrl(string? url)
+    {
+        return string.IsNullOrWhiteSpace(url)
+            ? null
+            : url.Replace("{w}", "300", System.StringComparison.OrdinalIgnoreCase)
+                .Replace("{h}", "300", System.StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? GetNestedString(JsonElement element, params string[] path)
