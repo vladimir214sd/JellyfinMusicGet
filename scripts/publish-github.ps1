@@ -21,16 +21,24 @@ if (-not (Test-Path $tokenPath)) {
     throw "token.txt was not found."
 }
 
-$token = (Get-Content -Raw -Path $tokenPath).Trim()
-if ([string]::IsNullOrWhiteSpace($token)) {
-    throw "token.txt is empty."
+function Get-GitHubToken {
+    $token = (Get-Content -Raw -Path $tokenPath).Trim()
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        throw "token.txt is empty."
+    }
+
+    return $token
 }
 
-$headers = @{
-    "Accept" = "application/vnd.github+json"
-    "Authorization" = "Bearer $token"
-    "X-GitHub-Api-Version" = "2022-11-28"
-    "User-Agent" = "JellyfinMusicGetPublisher"
+function New-GitHubHeaders {
+    $token = Get-GitHubToken
+
+    return @{
+        "Accept" = "application/vnd.github+json"
+        "Authorization" = "Bearer $token"
+        "X-GitHub-Api-Version" = "2022-11-28"
+        "User-Agent" = "JellyfinMusicGetPublisher"
+    }
 }
 
 function Get-GitHubErrorMessage {
@@ -69,25 +77,51 @@ function Invoke-GitHub {
         [switch]$IgnoreNotFound
     )
 
-    try {
-        if ($null -ne $Body) {
-            $json = $Body | ConvertTo-Json -Depth 20
-            return Invoke-RestMethod -Method $Method -Uri $Uri -Headers $headers -Body $json -ContentType "application/json"
-        }
+    $maxAttempts = 4
 
-        return Invoke-RestMethod -Method $Method -Uri $Uri -Headers $headers
-    } catch {
-        $statusCode = $null
-        if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
-            $statusCode = [int]$_.Exception.Response.StatusCode
-        }
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        try {
+            $headers = New-GitHubHeaders
 
-        if ($IgnoreNotFound -and $statusCode -eq 404) {
-            return $null
-        }
+            if ($null -ne $Body) {
+                $json = $Body | ConvertTo-Json -Depth 20
+                return Invoke-RestMethod -Method $Method -Uri $Uri -Headers $headers -Body $json -ContentType "application/json"
+            }
 
-        $message = Get-GitHubErrorMessage -ErrorRecord $_
-        throw "GitHub API $Method $Uri failed ($statusCode): $message"
+            return Invoke-RestMethod -Method $Method -Uri $Uri -Headers $headers
+        } catch {
+            $statusCode = $null
+            if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+                $statusCode = [int]$_.Exception.Response.StatusCode
+            }
+
+            if ($IgnoreNotFound -and $statusCode -eq 404) {
+                return $null
+            }
+
+            $message = Get-GitHubErrorMessage -ErrorRecord $_
+            $isRateLimit = $statusCode -eq 429 -or
+                ($statusCode -eq 403 -and $message -match '(?i)(rate limit|secondary rate limit|abuse)')
+            $isTransient = $statusCode -eq 401 -or
+                $isRateLimit -or
+                $statusCode -eq 500 -or
+                $statusCode -eq 502 -or
+                $statusCode -eq 503 -or
+                $statusCode -eq 504
+
+            if ($isTransient -and $attempt -lt $maxAttempts) {
+                $delaySeconds = [Math]::Pow(2, $attempt)
+                Write-Warning "GitHub API returned HTTP $statusCode for $Method $Uri. Retrying in $delaySeconds seconds ($attempt/$maxAttempts)."
+                Start-Sleep -Seconds $delaySeconds
+                continue
+            }
+
+            if ($statusCode -eq 401) {
+                throw "GitHub authentication failed after $maxAttempts attempts. Replace token.txt with a valid token and grant repository Contents: Read and write permission. Last response: $message"
+            }
+
+            throw "GitHub API $Method $Uri failed ($statusCode): $message"
+        }
     }
 }
 
@@ -172,6 +206,7 @@ foreach ($file in $files) {
 
     Invoke-GitHub -Method "PUT" -Uri "https://api.github.com/repos/$owner/$RepositoryName/contents/$encodedPath" -Body $body | Out-Null
     Write-Host "Uploaded $relativePath"
+    Start-Sleep -Milliseconds 250
 }
 
 $repo = Invoke-GitHub -Method "GET" -Uri "https://api.github.com/repos/$owner/$RepositoryName"
