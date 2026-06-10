@@ -6,6 +6,7 @@
     var PLUGIN_ID = 'ad3000ca-4bcb-4b4d-a67f-b9a80cd81892';
     var DEFAULT_REQUEST_TIMEOUT_MS = 45000;
     var TRACK_DISPLAY_MAX_DISTANCE_TICKS = 60 * TICKS_PER_SECOND;
+    var SAME_SECOND_CLEAR_MODE = 'same-second';
     var TRANSLATIONS = {
         en: {
             recognizeMusic: 'Recognize music',
@@ -1013,6 +1014,8 @@
                 this.lastResponse = null;
                 this.lastResponseContext = null;
                 this.lastStatusText = '';
+                this.lastStatusContext = null;
+                this.lastStatusClearMode = null;
                 this.currentRoot = null;
                 this.currentVideo = null;
                 this.currentMediaIdentity = null;
@@ -1065,7 +1068,7 @@
                 var style = document.createElement('style');
                 style.id = 'auddMusicRecognitionStyles';
                 style.textContent = [
-                    '.auddRecognitionOverlay{position:fixed;top:calc(env(safe-area-inset-top,0px) + 16px);right:calc(env(safe-area-inset-right,0px) + 96px);z-index:99999;display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:min(430px,calc(100vw - 120px));pointer-events:none;font-family:inherit;color:#fff;}',
+                    '.auddRecognitionOverlay{position:fixed;top:calc(env(safe-area-inset-top,0px) + 16px);right:calc(env(safe-area-inset-right,0px) + 126px);z-index:99999;display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:min(430px,calc(100vw - 150px));pointer-events:none;font-family:inherit;color:#fff;}',
                     '.auddRecognitionButton{pointer-events:auto;width:42px;height:42px;border:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(20,20,20,.72);color:#fff;box-shadow:0 8px 26px rgba(0,0,0,.34);cursor:pointer;touch-action:manipulation;transition:background .18s ease,transform .18s ease,opacity .18s ease;}',
                     '.auddRecognitionButton:hover{background:rgba(34,34,34,.86);transform:translateY(-1px);}',
                     '.auddRecognitionButton:disabled{opacity:.62;cursor:default;}',
@@ -1096,7 +1099,7 @@
                     '.auddRecognitionDebug{pointer-events:auto;margin-top:7px;min-height:24px;max-width:100%;padding:6px 8px;border-radius:7px;background:rgba(20,20,20,.55);color:rgba(255,255,255,.82);font-size:11px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text;user-select:text;-webkit-user-select:text;}',
                     '.auddRecognitionDebug:empty{display:none;}',
                     '@keyframes auddRecognitionPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(.9);opacity:.72;}}',
-                    '@media (max-width: 640px){.auddRecognitionOverlay{top:12px;right:64px;max-width:calc(100vw - 76px);}.auddRecognitionPanel{width:calc(100vw - 76px);}.auddRecognitionHeading{font-size:16px;}.auddRecognitionCard{padding:14px;}.auddRecognitionMain{grid-template-columns:50px minmax(0,1fr);gap:12px;}.auddRecognitionCover{width:50px;height:50px;}.auddRecognitionTitle{font-size:17px;}.auddRecognitionArtist{font-size:14px;}.auddRecognitionAction{padding:0 12px;font-size:12px;}}'
+                    '@media (max-width: 640px){.auddRecognitionOverlay{top:10px;right:84px;gap:6px;max-width:min(280px,calc(100vw - 104px));}.auddRecognitionButton{width:38px;height:38px;}.auddRecognitionButton svg{width:19px;height:19px;}.auddRecognitionPanel{width:min(280px,calc(100vw - 104px));}.auddRecognitionHeading{margin-bottom:6px;font-size:14px;}.auddRecognitionCard{padding:10px 12px 11px;}.auddRecognitionMain{grid-template-columns:42px minmax(0,1fr);gap:10px;}.auddRecognitionCover{width:42px;height:42px;border-radius:5px;}.auddRecognitionCoverIcon{width:22px;height:22px;}.auddRecognitionTitle{font-size:15px;line-height:1.15;}.auddRecognitionArtist{margin-top:4px;font-size:12px;}.auddRecognitionAlbum{margin-top:3px;font-size:11px;}.auddRecognitionActions{margin-top:10px;min-height:34px;}.auddRecognitionAction{min-width:62px;min-height:34px;padding:0 9px;font-size:11px;}.auddRecognitionStatus .auddRecognitionTitle{font-size:14px;}.auddRecognitionStatus .auddRecognitionArtist{font-size:11px;}.auddRecognitionDebug{margin-top:5px;min-height:20px;padding:5px 7px;font-size:10px;}}'
                 ].join('');
                 document.head.appendChild(style);
             }
@@ -1253,7 +1256,7 @@
                 if (this.lastResponse) {
                     this.setRecognitionResponse(this.lastResponse);
                 } else if (this.lastStatusText) {
-                    this.setResult(this.lastStatusText);
+                    this.setResult(this.lastStatusText, this.lastStatusContext, this.lastStatusClearMode);
                 }
             }
 
@@ -1497,6 +1500,19 @@
             }
 
             isRecognitionDisplayStale(context) {
+                if (this.lastStatusContext && this.lastStatusClearMode === SAME_SECOND_CLEAR_MODE && context) {
+                    if (this.lastStatusContext.itemId && context.itemId && this.lastStatusContext.itemId !== context.itemId) {
+                        return true;
+                    }
+
+                    var currentStatusTicks = Number(context.positionTicks);
+                    var originalStatusTicks = Number(this.lastStatusContext.positionTicks);
+
+                    return Number.isFinite(currentStatusTicks)
+                        && Number.isFinite(originalStatusTicks)
+                        && Math.floor(currentStatusTicks / TICKS_PER_SECOND) !== Math.floor(originalStatusTicks / TICKS_PER_SECOND);
+                }
+
                 if (!this.lastResponse || !this.lastResponseContext || !context) {
                     return false;
                 }
@@ -1522,15 +1538,23 @@
                 }
             }
 
-            setResult(text) {
+            setResult(text, context, clearMode) {
                 if (!text) {
                     this.lastStatusText = '';
                     this.lastResponse = null;
                     this.lastResponseContext = null;
+                    this.lastStatusContext = null;
+                    this.lastStatusClearMode = null;
                 } else {
                     this.lastStatusText = text;
                     this.lastResponse = null;
                     this.lastResponseContext = null;
+                    this.lastStatusContext = context && clearMode ? {
+                        itemId: context.itemId,
+                        mediaSourceId: context.mediaSourceId || '',
+                        positionTicks: context.positionTicks
+                    } : null;
+                    this.lastStatusClearMode = context && clearMode ? clearMode : null;
                 }
 
                 if (!this.panel || !this.heading || !this.card || !this.title || !this.artist || !this.album || !this.actions) {
@@ -1561,12 +1585,18 @@
 
             setRecognitionResponse(response, context) {
                 if (getResponseStatus(response) !== 'recognized') {
-                    this.setResult(getText(response));
+                    var status = getResponseStatus(response);
+                    this.setResult(
+                        getText(response),
+                        status === 'no_match' ? context : null,
+                        status === 'no_match' ? SAME_SECOND_CLEAR_MODE : null);
                     return;
                 }
 
                 this.lastResponse = response;
                 this.lastStatusText = '';
+                this.lastStatusContext = null;
+                this.lastStatusClearMode = null;
                 if (context) {
                     this.lastResponseContext = {
                         itemId: context.itemId,
