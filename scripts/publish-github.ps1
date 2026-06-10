@@ -194,10 +194,19 @@ foreach ($file in $files) {
     $relativePath = (Get-RelativePath -FullPath $file.FullName).Replace("\", "/")
     $encodedPath = ConvertTo-GitHubPath -Path $relativePath
     $existing = Invoke-GitHub -Method "GET" -Uri "https://api.github.com/repos/$owner/$RepositoryName/contents/$encodedPath" -IgnoreNotFound
+    $content = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($file.FullName))
+
+    if ($null -ne $existing -and $existing.content) {
+        $remoteContent = ([string]$existing.content) -replace "\s", ""
+        if ($remoteContent -eq $content) {
+            Write-Host "Unchanged $relativePath"
+            continue
+        }
+    }
 
     $body = @{
         message = "Publish $relativePath"
-        content = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($file.FullName))
+        content = $content
     }
 
     if ($null -ne $existing -and $existing.sha) {
