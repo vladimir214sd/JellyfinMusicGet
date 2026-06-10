@@ -58,6 +58,11 @@
         return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed) ? trimmed : null;
     }
 
+    function defaultMediaSourceId(itemId) {
+        var guid = normalizeGuid(String(itemId || ''));
+        return guid ? guid.replace(/-/g, '') : null;
+    }
+
     function parseNumber(value) {
         var number = Number(value);
         return Number.isFinite(number) ? number : null;
@@ -666,9 +671,19 @@
                 var mediaSources = item.MediaSources || item.mediaSources || [];
                 var mediaSource = currentMediaSource || (mediaSources.length ? mediaSources[0] : {});
 
+                var itemId = item.Id || item.id || item.ItemId || item.itemId || fallback.itemId;
+                var mediaSourceId = item.MediaSourceId
+                    || item.mediaSourceId
+                    || playerInfo.mediaSourceId
+                    || playerInfo.MediaSourceId
+                    || mediaSource.Id
+                    || mediaSource.id
+                    || fallback.mediaSourceId
+                    || defaultMediaSourceId(itemId);
+
                 return {
-                    itemId: item.Id || item.id || item.ItemId || item.itemId || fallback.itemId,
-                    mediaSourceId: item.MediaSourceId || item.mediaSourceId || playerInfo.mediaSourceId || playerInfo.MediaSourceId || mediaSource.Id || mediaSource.id || fallback.mediaSourceId || null,
+                    itemId: itemId,
+                    mediaSourceId: mediaSourceId || null,
                     positionTicks: normalizeTicks(position, video ? video.currentTime : null),
                     audioStreamIndex: pickFirstValue([
                         statePlayState.AudioStreamIndex,
