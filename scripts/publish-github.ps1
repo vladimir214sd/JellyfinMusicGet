@@ -218,6 +218,36 @@ foreach ($file in $files) {
     Start-Sleep -Milliseconds 250
 }
 
+$obsoletePaths = @(
+    "src/Jellyfin.Plugin.AuddMusicRecognition/Services/AcoustIdClient.cs",
+    "src/Jellyfin.Plugin.AuddMusicRecognition/Services/AcoustIdRecognitionParser.cs",
+    "src/Jellyfin.Plugin.AuddMusicRecognition/Services/AudioFingerprint.cs",
+    "src/Jellyfin.Plugin.AuddMusicRecognition/Services/FpcalcAudioFingerprinter.cs",
+    "src/Jellyfin.Plugin.AuddMusicRecognition/Services/IAcoustIdClient.cs",
+    "src/Jellyfin.Plugin.AuddMusicRecognition/Services/IAudioFingerprinter.cs",
+    "src/Jellyfin.Plugin.AuddMusicRecognition/Services/IShazamClient.cs",
+    "src/Jellyfin.Plugin.AuddMusicRecognition/Services/ShazamRapidApiClient.cs",
+    "src/Jellyfin.Plugin.AuddMusicRecognition/Services/ShazamRecognitionParser.cs",
+    "tests/Jellyfin.Plugin.AuddMusicRecognition.Tests/AcoustIdRecognitionParserTests.cs",
+    "tests/Jellyfin.Plugin.AuddMusicRecognition.Tests/ShazamRecognitionParserTests.cs"
+)
+
+foreach ($relativePath in $obsoletePaths) {
+    $encodedPath = ConvertTo-GitHubPath -Path $relativePath
+    $existing = Invoke-GitHub -Method "GET" -Uri "https://api.github.com/repos/$owner/$RepositoryName/contents/$encodedPath" -IgnoreNotFound
+
+    if ($null -eq $existing -or [string]::IsNullOrWhiteSpace($existing.sha)) {
+        continue
+    }
+
+    Invoke-GitHub -Method "DELETE" -Uri "https://api.github.com/repos/$owner/$RepositoryName/contents/$encodedPath" -Body @{
+        message = "Remove $relativePath"
+        sha = $existing.sha
+    } | Out-Null
+    Write-Host "Removed $relativePath"
+    Start-Sleep -Milliseconds 250
+}
+
 $repo = Invoke-GitHub -Method "GET" -Uri "https://api.github.com/repos/$owner/$RepositoryName"
 $branch = if ([string]::IsNullOrWhiteSpace($repo.default_branch)) { "main" } else { $repo.default_branch }
 
