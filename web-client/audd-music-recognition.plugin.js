@@ -500,9 +500,23 @@
 
         var songLink = readResponseValue(response, ['songLink', 'SongLink']);
         return songLink ? {
-            label: 'AudD',
+            label: getSongLinkLabel(songLink),
             url: songLink
         } : null;
+    }
+
+    function getSongLinkLabel(url) {
+        var value = String(url || '').toLowerCase();
+
+        if (value.indexOf('acoustid.org') >= 0) {
+            return 'AcoustID';
+        }
+
+        if (value.indexOf('shazam.com') >= 0) {
+            return 'Shazam';
+        }
+
+        return 'AudD';
     }
 
     function getTrackCopyText(response) {
