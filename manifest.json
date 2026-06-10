@@ -1,18 +1,20 @@
-{
-  "guid": "ad3000ca-4bcb-4b4d-a67f-b9a80cd81892",
-  "name": "AudD Music Recognition",
-  "description": "Recognize music playing inside Jellyfin videos by sending a short audio clip to the AudD API.",
-  "overview": "Recognize music in the Jellyfin player",
-  "owner": "custom",
-  "category": "Music",
-  "versions": [
-    {
-      "version": "1.0.0.0",
-      "changelog": "Initial release with automatic Jellyfin Web overlay injection.",
-      "targetAbi": "10.11.0.0",
-      "sourceUrl": "https://github.com/vladimir214sd/JellyfinMusicGet/releases/download/v1.0.0.0/audd-music-recognition_1.0.0.0.zip",
-      "checksum": "a4438d8100fef1a33f510dfc5edbb969",
-      "timestamp": "2026-06-10T07:25:40Z"
-    }
-  ]
-}
+[
+  {
+    "guid": "ad3000ca-4bcb-4b4d-a67f-b9a80cd81892",
+    "name": "AudD Music Recognition",
+    "description": "Recognize music playing inside Jellyfin videos by sending a short audio clip to the AudD API.",
+    "overview": "Recognize music in the Jellyfin player",
+    "owner": "custom",
+    "category": "Music",
+    "versions": [
+      {
+        "version": "1.0.0.0",
+        "changelog": "Initial release with automatic Jellyfin Web overlay injection.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/vladimir214sd/JellyfinMusicGet/releases/download/v1.0.0.0/audd-music-recognition_1.0.0.0.zip",
+        "checksum": "a4438d8100fef1a33f510dfc5edbb969",
+        "timestamp": "2026-06-10T07:25:40Z"
+      }
+    ]
+  }
+]
