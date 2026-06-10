@@ -5,6 +5,128 @@
     var PLUGIN_NAME = 'AuddMusicRecognitionPlugin';
     var PLUGIN_ID = 'ad3000ca-4bcb-4b4d-a67f-b9a80cd81892';
     var DEFAULT_REQUEST_TIMEOUT_MS = 45000;
+    var TRANSLATIONS = {
+        en: {
+            recognizeMusic: 'Recognize music',
+            nowPlaying: 'Now playing',
+            recognition: 'Recognition',
+            open: 'Open',
+            copy: 'Copy',
+            copied: 'Copied',
+            copyHint: 'Double-click to copy',
+            listeningTitle: 'Listening...',
+            listeningSubtitle: 'Looking for the track in this clip',
+            alreadyListeningTitle: 'Already listening...',
+            alreadyListeningSubtitle: 'Just a few more seconds',
+            noMatchTitle: 'No match',
+            noMatchSubtitle: 'Try another moment',
+            noVideoTitle: 'No video detected',
+            noVideoSubtitle: 'Restart playback and try again',
+            failedTitle: 'Could not recognize',
+            sentPrefix: 'Sent',
+            noMatch: 'No match',
+            recognized: 'Recognized',
+            couldNotReadPlayback: 'Could not read playback',
+            noItemId: 'No item id',
+            recognitionFailed: 'Recognition failed'
+        },
+        ru: {
+            recognizeMusic: 'Распознать музыку',
+            nowPlaying: 'Сейчас играет',
+            recognition: 'Распознавание',
+            open: 'Открыть',
+            copy: 'Копировать',
+            copied: 'Скопировано',
+            copyHint: 'Двойной клик, чтобы скопировать',
+            listeningTitle: 'Слушаю...',
+            listeningSubtitle: 'Ищу трек в этом фрагменте',
+            alreadyListeningTitle: 'Уже слушаю...',
+            alreadyListeningSubtitle: 'Еще пару секунд',
+            noMatchTitle: 'Не нашел трек',
+            noMatchSubtitle: 'Попробуй другой момент',
+            noVideoTitle: 'Не вижу видео',
+            noVideoSubtitle: 'Открой воспроизведение заново',
+            failedTitle: 'Не получилось',
+            sentPrefix: 'Отправлено',
+            noMatch: 'Нет совпадений',
+            recognized: 'Распознано',
+            couldNotReadPlayback: 'Не удалось прочитать плеер',
+            noItemId: 'Не найден item id',
+            recognitionFailed: 'Ошибка распознавания'
+        },
+        es: {
+            recognizeMusic: 'Reconocer musica',
+            nowPlaying: 'Reproduciendo ahora',
+            recognition: 'Reconocimiento',
+            open: 'Abrir',
+            copy: 'Copiar',
+            copied: 'Copiado',
+            copyHint: 'Doble clic para copiar',
+            listeningTitle: 'Escuchando...',
+            listeningSubtitle: 'Buscando la pista en este fragmento',
+            alreadyListeningTitle: 'Ya estoy escuchando...',
+            alreadyListeningSubtitle: 'Unos segundos mas',
+            noMatchTitle: 'Sin coincidencias',
+            noMatchSubtitle: 'Prueba otro momento',
+            noVideoTitle: 'No veo el video',
+            noVideoSubtitle: 'Reinicia la reproduccion',
+            failedTitle: 'No se pudo reconocer',
+            sentPrefix: 'Enviado',
+            noMatch: 'Sin coincidencias',
+            recognized: 'Reconocido',
+            couldNotReadPlayback: 'No se pudo leer la reproduccion',
+            noItemId: 'Sin item id',
+            recognitionFailed: 'Error de reconocimiento'
+        },
+        de: {
+            recognizeMusic: 'Musik erkennen',
+            nowPlaying: 'Lauft gerade',
+            recognition: 'Erkennung',
+            open: 'Offnen',
+            copy: 'Kopieren',
+            copied: 'Kopiert',
+            copyHint: 'Doppelklick zum Kopieren',
+            listeningTitle: 'Hore zu...',
+            listeningSubtitle: 'Suche den Titel in diesem Ausschnitt',
+            alreadyListeningTitle: 'Hore schon zu...',
+            alreadyListeningSubtitle: 'Noch ein paar Sekunden',
+            noMatchTitle: 'Kein Treffer',
+            noMatchSubtitle: 'Versuche eine andere Stelle',
+            noVideoTitle: 'Kein Video erkannt',
+            noVideoSubtitle: 'Starte die Wiedergabe neu',
+            failedTitle: 'Erkennung fehlgeschlagen',
+            sentPrefix: 'Gesendet',
+            noMatch: 'Kein Treffer',
+            recognized: 'Erkannt',
+            couldNotReadPlayback: 'Wiedergabe konnte nicht gelesen werden',
+            noItemId: 'Keine item id',
+            recognitionFailed: 'Erkennung fehlgeschlagen'
+        },
+        fr: {
+            recognizeMusic: 'Reconnaitre la musique',
+            nowPlaying: 'Lecture en cours',
+            recognition: 'Reconnaissance',
+            open: 'Ouvrir',
+            copy: 'Copier',
+            copied: 'Copie',
+            copyHint: 'Double-cliquer pour copier',
+            listeningTitle: 'Ecoute...',
+            listeningSubtitle: 'Recherche du titre dans cet extrait',
+            alreadyListeningTitle: 'Ecoute en cours...',
+            alreadyListeningSubtitle: 'Encore quelques secondes',
+            noMatchTitle: 'Aucun resultat',
+            noMatchSubtitle: 'Essaie un autre moment',
+            noVideoTitle: 'Aucune video detectee',
+            noVideoSubtitle: 'Relance la lecture',
+            failedTitle: 'Reconnaissance impossible',
+            sentPrefix: 'Envoye',
+            noMatch: 'Aucun resultat',
+            recognized: 'Reconnu',
+            couldNotReadPlayback: 'Lecture impossible a lire',
+            noItemId: 'Aucun item id',
+            recognitionFailed: 'Echec de reconnaissance'
+        }
+    };
     window.__auddMusicRecognitionOverlayLoaded = true;
 
     function firstFunctionResult(candidates) {
@@ -37,6 +159,31 @@
         }
 
         return Array.prototype.slice.call(value);
+    }
+
+    function normalizeLocale(locale) {
+        return locale && typeof locale === 'string'
+            ? locale.toLowerCase().replace('_', '-')
+            : '';
+    }
+
+    function getCurrentLocale(globalize) {
+        return normalizeLocale(firstFunctionResult([
+            function () { return globalize && typeof globalize.getCurrentLocale === 'function' ? globalize.getCurrentLocale() : null; },
+            function () { return document.documentElement ? document.documentElement.lang : null; },
+            function () { return navigator.language; },
+            function () { return navigator.languages && navigator.languages.length ? navigator.languages[0] : null; }
+        ])) || 'en';
+    }
+
+    function createTranslator(globalize) {
+        var locale = getCurrentLocale(globalize);
+        var language = locale.split('-')[0];
+        var strings = TRANSLATIONS[locale] || TRANSLATIONS[language] || TRANSLATIONS.en;
+
+        return function translate(key) {
+            return strings[key] || TRANSLATIONS.en[key] || key;
+        };
     }
 
     function normalizeGuid(value) {
@@ -176,31 +323,79 @@
         });
     }
 
-    function jsonFetch(url, payload, timeoutMs) {
-        var headers = {
-            'Content-Type': 'application/json'
-        };
-
-        var token = firstFunctionResult([
+    function getAccessToken() {
+        return firstFunctionResult([
             function () { return window.ApiClient && typeof window.ApiClient.accessToken === 'function' ? window.ApiClient.accessToken() : null; },
             function () { return window.ApiClient && typeof window.ApiClient.serverInfo === 'function' ? window.ApiClient.serverInfo().AccessToken : null; },
             function () { return window.ApiClient && window.ApiClient._serverInfo ? window.ApiClient._serverInfo.AccessToken : null; }
         ]);
+    }
 
+    function getApiHeaders(extraHeaders) {
+        var headers = {
+            Accept: 'application/json'
+        };
+
+        Object.keys(extraHeaders || {}).forEach(function (key) {
+            headers[key] = extraHeaders[key];
+        });
+
+        var token = getAccessToken();
         if (token) {
             headers.Authorization = 'MediaBrowser Token="' + token + '"';
             headers['X-Emby-Token'] = token;
         }
 
-        var requestUrl = firstFunctionResult([
+        return headers;
+    }
+
+    function getApiUrl(url) {
+        return firstFunctionResult([
             function () { return window.ApiClient && typeof window.ApiClient.getUrl === 'function' ? window.ApiClient.getUrl(url) : null; },
             function () { return '/' + url.replace(/^\/+/, ''); }
         ]);
+    }
+
+    function apiGetJson(url, timeoutMs) {
+        var requestUrl = getApiUrl(url);
+
+        return withTimeout(function (signal) {
+            return fetch(requestUrl, {
+                method: 'GET',
+                headers: getApiHeaders(),
+                credentials: 'same-origin',
+                signal: signal
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+
+                return response.json();
+            });
+        }, timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS).catch(function (fetchError) {
+            if (window.ApiClient && typeof window.ApiClient.ajax === 'function' && typeof window.ApiClient.getUrl === 'function') {
+                return withTimeout(function () {
+                    return window.ApiClient.ajax({
+                        type: 'GET',
+                        url: window.ApiClient.getUrl(url),
+                        dataType: 'json'
+                    });
+                }, timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS);
+            }
+
+            throw fetchError;
+        });
+    }
+
+    function jsonFetch(url, payload, timeoutMs) {
+        var requestUrl = getApiUrl(url);
 
         return withTimeout(function (signal) {
             return fetch(requestUrl, {
                 method: 'POST',
-                headers: headers,
+                headers: getApiHeaders({
+                    'Content-Type': 'application/json'
+                }),
                 body: JSON.stringify(payload),
                 credentials: 'same-origin',
                 signal: signal
@@ -317,40 +512,40 @@
         return album ? main + ' (' + album + ')' : main;
     }
 
-    function getFriendlyStatus(text) {
+    function getFriendlyStatus(text, t) {
         var value = text ? String(text) : '';
         var lower = value.toLowerCase();
 
         if (!value || lower === 'starting...' || lower === 'recognizing...') {
             return {
-                title: 'Слушаю...',
-                subtitle: 'Ищу трек в этом фрагменте'
+                title: t('listeningTitle'),
+                subtitle: t('listeningSubtitle')
             };
         }
 
         if (lower === 'still recognizing...') {
             return {
-                title: 'Уже слушаю...',
-                subtitle: 'Еще пару секунд'
+                title: t('alreadyListeningTitle'),
+                subtitle: t('alreadyListeningSubtitle')
             };
         }
 
         if (lower === 'no match') {
             return {
-                title: 'Не нашел трек',
-                subtitle: 'Попробуй другой момент'
+                title: t('noMatchTitle'),
+                subtitle: t('noMatchSubtitle')
             };
         }
 
         if (lower === 'no item id' || lower === 'could not read playback') {
             return {
-                title: 'Не вижу видео',
-                subtitle: 'Открой воспроизведение заново'
+                title: t('noVideoTitle'),
+                subtitle: t('noVideoSubtitle')
             };
         }
 
         return {
-            title: 'Не получилось',
+            title: t('failedTitle'),
             subtitle: value
         };
     }
@@ -394,7 +589,7 @@
         return (value / 1024 / 1024).toFixed(2) + ' MB';
     }
 
-    function formatClipDebug(response, context) {
+    function formatClipDebug(response, context, t) {
         var durationTicks = readResponseValue(response, ['clipDurationTicks', 'ClipDurationTicks']);
         var sizeBytes = readResponseValue(response, ['clipSizeBytes', 'ClipSizeBytes']);
         var parts = [];
@@ -412,7 +607,95 @@
             parts.push(sizeText);
         }
 
-        return parts.length ? 'Отправлено: ' + parts.join(', ') : '';
+        return parts.length ? t('sentPrefix') + ': ' + parts.join(', ') : '';
+    }
+
+    function getCurrentUserId() {
+        return firstFunctionResult([
+            function () { return window.ApiClient && typeof window.ApiClient.getCurrentUserId === 'function' ? window.ApiClient.getCurrentUserId() : null; },
+            function () { return window.ApiClient && window.ApiClient._serverInfo ? window.ApiClient._serverInfo.UserId : null; },
+            function () { return window.ApiClient && window.ApiClient._serverInfo ? window.ApiClient._serverInfo.userId : null; }
+        ]);
+    }
+
+    function readArrayValue(value, names) {
+        for (var i = 0; i < names.length; i += 1) {
+            if (value && Array.isArray(value[names[i]])) {
+                return value[names[i]];
+            }
+        }
+
+        return [];
+    }
+
+    function readObjectValue(value, names) {
+        for (var i = 0; i < names.length; i += 1) {
+            if (value && value[names[i]] && typeof value[names[i]] === 'object') {
+                return value[names[i]];
+            }
+        }
+
+        return null;
+    }
+
+    function isLocalMediaPath(path) {
+        return typeof path === 'string'
+            && path.length > 0
+            && !/^https?:\/\//i.test(path)
+            && !/^rtmps?:\/\//i.test(path);
+    }
+
+    function getPlaybackInfoUrl(itemId) {
+        var userId = getCurrentUserId();
+        var query = userId && typeof userId !== 'object' ? '?userId=' + encodeURIComponent(String(userId)) : '';
+        return 'Items/' + encodeURIComponent(itemId) + '/PlaybackInfo' + query;
+    }
+
+    function choosePlaybackMediaSource(context, playbackInfo) {
+        var mediaSources = readArrayValue(playbackInfo, ['MediaSources', 'mediaSources']);
+        if (!mediaSources.length) {
+            return null;
+        }
+
+        var requestedId = context.mediaSourceId;
+        var selected = null;
+
+        if (requestedId) {
+            selected = mediaSources.filter(function (source) {
+                var id = readResponseValue(source, ['Id', 'id']);
+                return id && String(id).toLowerCase() === String(requestedId).toLowerCase();
+            })[0] || null;
+        }
+
+        return selected || mediaSources.filter(function (source) {
+            return isLocalMediaPath(readResponseValue(source, ['Path', 'path']));
+        })[0] || mediaSources[0];
+    }
+
+    function mergePlaybackInfo(context, playbackInfo) {
+        var mediaSource = choosePlaybackMediaSource(context, playbackInfo);
+        if (!mediaSource) {
+            return context;
+        }
+
+        var mediaSourceId = readResponseValue(mediaSource, ['Id', 'id']);
+        var mediaSourcePath = readResponseValue(mediaSource, ['Path', 'path']);
+        var defaultAudioStreamIndex = readResponseValue(mediaSource, ['DefaultAudioStreamIndex', 'defaultAudioStreamIndex']);
+        var mediaStreams = readArrayValue(mediaSource, ['MediaStreams', 'mediaStreams']);
+        var audioStream = mediaStreams.filter(function (stream) {
+            var type = readResponseValue(stream, ['Type', 'type']);
+            return type && String(type).toLowerCase() === 'audio';
+        })[0] || null;
+
+        context.mediaSourceId = mediaSourceId || context.mediaSourceId;
+        context.mediaSourcePath = isLocalMediaPath(mediaSourcePath) ? mediaSourcePath : context.mediaSourcePath;
+        context.audioStreamIndex = pickFirstValue([
+            context.audioStreamIndex,
+            defaultAudioStreamIndex,
+            audioStream ? readResponseValue(audioStream, ['Index', 'index']) : null
+        ]);
+
+        return context;
     }
 
     function getActiveVideo() {
@@ -570,6 +853,7 @@
                 }
 
                 this.dependencies = dependencies || {};
+                this.t = createTranslator(this.dependencies.globalize || window.Globalize || window.globalize);
                 this.cache = new Map();
                 this.overlay = null;
                 this.button = null;
@@ -587,7 +871,10 @@
                 this.copyButton = null;
                 this.debug = null;
                 this.copyText = '';
+                this.lastResponse = null;
+                this.lastStatusText = '';
                 this.currentRoot = null;
+                this.currentVideo = null;
                 this.currentMediaIdentity = null;
                 this.lastTriggerAt = 0;
                 this.requestSequence = 0;
@@ -623,6 +910,8 @@
                     window.clearInterval(this.interval);
                 }
 
+                this.bindVideoEvents(null);
+
                 if (this.overlay) {
                     this.overlay.remove();
                 }
@@ -656,9 +945,9 @@
                     '.auddRecognitionArtist{margin-top:6px;font-size:16px;line-height:1.2;color:rgba(255,255,255,.72);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text;}',
                     '.auddRecognitionAlbum{margin-top:5px;font-size:12px;line-height:1.2;color:rgba(255,255,255,.48);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text;}',
                     '.auddRecognitionAlbum:empty{display:none;}',
-                    '.auddRecognitionActions{margin-top:16px;display:flex;align-items:center;min-height:38px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;}',
+                    '.auddRecognitionActions{margin-top:16px;display:flex;align-items:stretch;width:100%;min-height:40px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;}',
                     '.auddRecognitionActions.is-hidden{display:none;}',
-                    '.auddRecognitionAction{appearance:none;border:0;background:transparent;color:#fff;text-decoration:none;height:38px;padding:0 17px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;line-height:1;white-space:nowrap;cursor:pointer;font-family:inherit;}',
+                    '.auddRecognitionAction{appearance:none;-webkit-appearance:none;box-sizing:border-box;flex:1 1 0;min-width:84px;border:0;border-radius:0;background:transparent;color:#fff;text-decoration:none;min-height:40px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;line-height:1;white-space:nowrap;cursor:pointer;font-family:inherit;}',
                     '.auddRecognitionAction:hover{background:rgba(255,255,255,.1);text-decoration:none;}',
                     '.auddRecognitionAction + .auddRecognitionAction{border-left:1px solid rgba(255,255,255,.2);}',
                     '.auddRecognitionStatus .auddRecognitionTitle{font-size:17px;font-weight:750;}',
@@ -684,7 +973,20 @@
             }
 
             ensureOverlay() {
-                var playerRoot = this.findPlayerRoot();
+                var video = getActiveVideo();
+                this.bindVideoEvents(video);
+
+                if (!video || !this.isPauseMenuAvailable(video)) {
+                    if (this.overlay) {
+                        this.overlay.remove();
+                        this.overlay = null;
+                    }
+
+                    this.currentRoot = null;
+                    return;
+                }
+
+                var playerRoot = this.findPlayerRoot(video);
 
                 if (!playerRoot) {
                     if (this.overlay) {
@@ -714,8 +1016,8 @@
                 this.button = document.createElement('button');
                 this.button.type = 'button';
                 this.button.className = 'auddRecognitionButton';
-                this.button.title = 'Recognize music';
-                this.button.setAttribute('aria-label', 'Recognize music');
+                this.button.title = this.t('recognizeMusic');
+                this.button.setAttribute('aria-label', this.t('recognizeMusic'));
                 this.button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6Z"/></svg>';
                 this.button.addEventListener('click', this.handleTrigger, true);
                 this.button.addEventListener('pointerup', this.handleTrigger, true);
@@ -723,14 +1025,14 @@
                 this.panel = document.createElement('div');
                 this.panel.className = 'auddRecognitionPanel is-hidden';
                 this.panel.setAttribute('aria-live', 'polite');
-                this.panel.title = 'Double-click to copy';
+                this.panel.title = this.t('copyHint');
                 this.panel.addEventListener('dblclick', this.handleCopyText, true);
                 this.panel.addEventListener('pointerdown', this.stopOverlayEvent);
                 this.panel.addEventListener('click', this.stopOverlayEvent);
 
                 this.heading = document.createElement('div');
                 this.heading.className = 'auddRecognitionHeading';
-                this.heading.textContent = 'Сейчас играет';
+                this.heading.textContent = this.t('nowPlaying');
 
                 this.card = document.createElement('div');
                 this.card.className = 'auddRecognitionCard';
@@ -777,13 +1079,13 @@
                 this.openLink.className = 'auddRecognitionAction';
                 this.openLink.target = '_blank';
                 this.openLink.rel = 'noopener noreferrer';
-                this.openLink.textContent = 'Открыть';
+                this.openLink.textContent = this.t('open');
                 this.openLink.addEventListener('click', this.stopOverlayEvent);
 
                 this.copyButton = document.createElement('button');
                 this.copyButton.type = 'button';
                 this.copyButton.className = 'auddRecognitionAction';
-                this.copyButton.textContent = 'Копировать';
+                this.copyButton.textContent = this.t('copy');
                 this.copyButton.addEventListener('click', this.handleCopyText, true);
 
                 this.actions.appendChild(this.serviceLink);
@@ -796,7 +1098,7 @@
 
                 this.debug = document.createElement('div');
                 this.debug.className = 'auddRecognitionDebug';
-                this.debug.title = 'Double-click to copy';
+                this.debug.title = this.t('copyHint');
                 this.debug.addEventListener('dblclick', this.handleCopyText, true);
                 this.debug.addEventListener('pointerdown', this.stopOverlayEvent);
                 this.debug.addEventListener('click', this.stopOverlayEvent);
@@ -807,11 +1109,45 @@
                 root.appendChild(this.overlay);
 
                 this.setBusy(this.isBusy);
+                if (this.lastResponse) {
+                    this.setRecognitionResponse(this.lastResponse);
+                } else if (this.lastStatusText) {
+                    this.setResult(this.lastStatusText);
+                }
+
                 this.syncPlaybackIdentity();
             }
 
-            findPlayerRoot() {
-                var video = getActiveVideo();
+            bindVideoEvents(video) {
+                if (this.currentVideo === video) {
+                    return;
+                }
+
+                if (this.currentVideo) {
+                    this.currentVideo.removeEventListener('play', this.ensureOverlay);
+                    this.currentVideo.removeEventListener('pause', this.ensureOverlay);
+                    this.currentVideo.removeEventListener('ended', this.ensureOverlay);
+                    this.currentVideo.removeEventListener('emptied', this.ensureOverlay);
+                    this.currentVideo.removeEventListener('loadedmetadata', this.ensureOverlay);
+                }
+
+                this.currentVideo = video || null;
+
+                if (this.currentVideo) {
+                    this.currentVideo.addEventListener('play', this.ensureOverlay);
+                    this.currentVideo.addEventListener('pause', this.ensureOverlay);
+                    this.currentVideo.addEventListener('ended', this.ensureOverlay);
+                    this.currentVideo.addEventListener('emptied', this.ensureOverlay);
+                    this.currentVideo.addEventListener('loadedmetadata', this.ensureOverlay);
+                }
+            }
+
+            isPauseMenuAvailable(video) {
+                return !!video && (video.paused || video.ended);
+            }
+
+            findPlayerRoot(video) {
+                video = video || getActiveVideo();
                 if (!video) {
                     return null;
                 }
@@ -894,6 +1230,19 @@
                 };
             }
 
+            async enrichPlaybackContext(context) {
+                if (!context || !context.itemId) {
+                    return context;
+                }
+
+                try {
+                    var playbackInfo = await apiGetJson(getPlaybackInfoUrl(context.itemId), 6000);
+                    return mergePlaybackInfo(context, playbackInfo);
+                } catch (_) {
+                    return context;
+                }
+            }
+
             cacheKey(context) {
                 var roundedSeconds = Math.round((context.positionTicks / TICKS_PER_SECOND) / 10) * 10;
                 return context.itemId + ':' + roundedSeconds;
@@ -944,6 +1293,14 @@
             }
 
             setResult(text) {
+                if (!text) {
+                    this.lastStatusText = '';
+                    this.lastResponse = null;
+                } else {
+                    this.lastStatusText = text;
+                    this.lastResponse = null;
+                }
+
                 if (!this.panel || !this.heading || !this.card || !this.title || !this.artist || !this.album || !this.actions) {
                     return;
                 }
@@ -954,8 +1311,8 @@
                     return;
                 }
 
-                var status = getFriendlyStatus(text);
-                this.heading.textContent = 'Распознавание';
+                var status = getFriendlyStatus(text, this.t);
+                this.heading.textContent = this.t('recognition');
                 this.card.className = 'auddRecognitionCard auddRecognitionStatus';
                 this.panel.classList.remove('is-hidden');
                 this.setCover('');
@@ -976,6 +1333,9 @@
                     return;
                 }
 
+                this.lastResponse = response;
+                this.lastStatusText = '';
+
                 if (!this.panel || !this.heading || !this.card || !this.title || !this.artist || !this.album || !this.actions) {
                     return;
                 }
@@ -983,11 +1343,11 @@
                 var link = getPreferredMusicLink(response);
                 var copyText = getTrackCopyText(response);
 
-                this.heading.textContent = 'Сейчас играет';
+                this.heading.textContent = this.t('nowPlaying');
                 this.card.className = 'auddRecognitionCard';
                 this.panel.classList.remove('is-hidden');
                 this.setCover(getAlbumArtUrl(response));
-                this.title.textContent = getTrackTitle(response) || 'Recognized';
+                this.title.textContent = getTrackTitle(response) || this.t('recognized');
                 this.artist.textContent = getTrackArtist(response) || getTrackAlbum(response) || '';
                 this.album.textContent = getTrackArtist(response) && getTrackAlbum(response) ? getTrackAlbum(response) : '';
                 this.copyText = copyText;
@@ -1103,21 +1463,21 @@
                 copyTextToClipboard(text).then(function (copied) {
                     if (copied && target) {
                         var previousText = target.tagName === 'BUTTON' ? target.textContent : null;
-                        target.title = 'Copied';
+                        target.title = this.t('copied');
                         if (previousText) {
-                            target.textContent = 'Скопировано';
+                            target.textContent = this.t('copied');
                         }
 
                         window.setTimeout(function () {
                             if (target) {
-                                target.title = 'Double-click to copy';
+                                target.title = this.t('copyHint');
                                 if (previousText) {
                                     target.textContent = previousText;
                                 }
                             }
-                        }, 1200);
+                        }.bind(this), 1200);
                     }
-                });
+                }.bind(this));
             }
 
             async runRecognition() {
@@ -1141,6 +1501,8 @@
                     return;
                 }
 
+                context = await this.enrichPlaybackContext(context);
+
                 var identity = this.mediaIdentity(context);
                 this.currentMediaIdentity = identity || this.currentMediaIdentity;
 
@@ -1159,6 +1521,7 @@
                     var response = await jsonFetch('Plugins/AuddMusicRecognition/Recognize', {
                         itemId: context.itemId,
                         mediaSourceId: context.mediaSourceId,
+                        mediaSourcePath: context.mediaSourcePath,
                         positionTicks: context.positionTicks,
                         audioStreamIndex: context.audioStreamIndex
                     }, this.settings.requestTimeoutMs);
@@ -1172,7 +1535,7 @@
                     }
 
                     if (this.settings.showDebugInfo) {
-                        this.setDebug(formatClipDebug(response, context));
+                        this.setDebug(formatClipDebug(response, context, this.t));
                     }
 
                     this.setRecognitionResponse(response);
@@ -1199,6 +1562,7 @@
         window[PLUGIN_NAME]().then(function (PluginClass) {
             return new PluginClass({
                 playbackManager: window.playbackManager || window.PlaybackManager,
+                globalize: window.Globalize || window.globalize,
                 ServerConnections: window.ServerConnections
             });
         }).catch(function () {
