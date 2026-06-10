@@ -3,6 +3,8 @@
 
     var TICKS_PER_SECOND = 10000000;
     var PLUGIN_NAME = 'AuddMusicRecognitionPlugin';
+    var PLUGIN_ID = 'ad3000ca-4bcb-4b4d-a67f-b9a80cd81892';
+    var DEFAULT_REQUEST_TIMEOUT_MS = 45000;
     window.__auddMusicRecognitionOverlayLoaded = true;
 
     function firstFunctionResult(candidates) {
@@ -61,6 +63,11 @@
         return Number.isFinite(number) ? number : null;
     }
 
+    function positiveNumber(value) {
+        var number = parseNumber(value);
+        return number && number > 0 ? number : null;
+    }
+
     function readResponseValue(response, names) {
         if (!response) {
             return null;
@@ -113,7 +120,58 @@
         return Math.round(number * TICKS_PER_SECOND);
     }
 
-    function jsonFetch(url, payload) {
+    function withTimeout(promiseFactory, timeoutMs) {
+        var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timeoutError = new Error('Recognition timed out');
+        timeoutError.isTimeout = true;
+
+        return new Promise(function (resolve, reject) {
+            var settled = false;
+            var timeoutId = window.setTimeout(function () {
+                if (settled) {
+                    return;
+                }
+
+                settled = true;
+
+                if (controller) {
+                    controller.abort();
+                }
+
+                reject(timeoutError);
+            }, timeoutMs);
+
+            var promise;
+            try {
+                promise = promiseFactory(controller ? controller.signal : undefined);
+            } catch (error) {
+                settled = true;
+                window.clearTimeout(timeoutId);
+                reject(error);
+                return;
+            }
+
+            promise.then(function (result) {
+                if (settled) {
+                    return;
+                }
+
+                settled = true;
+                window.clearTimeout(timeoutId);
+                resolve(result);
+            }, function (error) {
+                if (settled) {
+                    return;
+                }
+
+                settled = true;
+                window.clearTimeout(timeoutId);
+                reject(error);
+            });
+        });
+    }
+
+    function jsonFetch(url, payload, timeoutMs) {
         var headers = {
             'Content-Type': 'application/json'
         };
@@ -134,32 +192,41 @@
             function () { return '/' + url.replace(/^\/+/, ''); }
         ]);
 
-        return fetch(requestUrl, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload),
-            credentials: 'same-origin'
-        }).then(function (response) {
-            if (!response.ok) {
-                var responseError = new Error('HTTP ' + response.status);
-                responseError.httpStatus = response.status;
-                throw responseError;
+        return withTimeout(function (signal) {
+            return fetch(requestUrl, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(payload),
+                credentials: 'same-origin',
+                signal: signal
+            }).then(function (response) {
+                if (!response.ok) {
+                    var responseError = new Error('HTTP ' + response.status);
+                    responseError.httpStatus = response.status;
+                    throw responseError;
+                }
+
+                return response.json();
+            });
+        }, timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS).catch(function (fetchError) {
+            if (fetchError && (fetchError.isTimeout || fetchError.name === 'AbortError')) {
+                throw fetchError.isTimeout ? fetchError : new Error('Recognition timed out');
             }
 
-            return response.json();
-        }).catch(function (fetchError) {
             if (fetchError && fetchError.httpStatus && fetchError.httpStatus !== 401 && fetchError.httpStatus !== 403) {
                 throw fetchError;
             }
 
             if (window.ApiClient && typeof window.ApiClient.ajax === 'function' && typeof window.ApiClient.getUrl === 'function') {
-                return window.ApiClient.ajax({
-                    type: 'POST',
-                    url: window.ApiClient.getUrl(url),
-                    contentType: 'application/json',
-                    dataType: 'json',
-                    data: JSON.stringify(payload)
-                });
+                return withTimeout(function () {
+                    return window.ApiClient.ajax({
+                        type: 'POST',
+                        url: window.ApiClient.getUrl(url),
+                        contentType: 'application/json',
+                        dataType: 'json',
+                        data: JSON.stringify(payload)
+                    });
+                }, timeoutMs || DEFAULT_REQUEST_TIMEOUT_MS);
             }
 
             throw fetchError;
@@ -185,7 +252,41 @@
 
     function shouldCacheResponse(response) {
         var status = getResponseStatus(response);
-        return status === 'recognized' || status === 'no_match';
+        return status === 'recognized';
+    }
+
+    function formatBytes(bytes) {
+        var value = Number(bytes);
+        if (!Number.isFinite(value) || value < 0) {
+            return '';
+        }
+
+        if (value < 1024) {
+            return Math.round(value) + ' B';
+        }
+
+        if (value < 1024 * 1024) {
+            return (value / 1024).toFixed(1) + ' KB';
+        }
+
+        return (value / 1024 / 1024).toFixed(2) + ' MB';
+    }
+
+    function formatClipDebug(response) {
+        var durationTicks = readResponseValue(response, ['clipDurationTicks', 'ClipDurationTicks']);
+        var sizeBytes = readResponseValue(response, ['clipSizeBytes', 'ClipSizeBytes']);
+        var parts = [];
+
+        if (durationTicks !== undefined && durationTicks !== null) {
+            parts.push((Number(durationTicks) / TICKS_PER_SECOND).toFixed(1) + ' s');
+        }
+
+        var sizeText = formatBytes(sizeBytes);
+        if (sizeText) {
+            parts.push(sizeText);
+        }
+
+        return parts.length ? 'Отправлено: ' + parts.join(', ') : '';
     }
 
     function getActiveVideo() {
@@ -266,15 +367,33 @@
 
     function getPlaybackContextFromUrls(video) {
         var urls = collectPlaybackUrls(video);
+        var result = {};
 
         for (var i = 0; i < urls.length; i += 1) {
             var parsed = parsePlaybackUrl(urls[i]);
-            if (parsed.itemId) {
-                return parsed;
+
+            if (!result.itemId && parsed.itemId) {
+                result.itemId = parsed.itemId;
+            }
+
+            if (!result.mediaSourceId && parsed.mediaSourceId) {
+                result.mediaSourceId = parsed.mediaSourceId;
+            }
+
+            if (result.audioStreamIndex === undefined && parsed.audioStreamIndex !== undefined && parsed.audioStreamIndex !== null) {
+                result.audioStreamIndex = parsed.audioStreamIndex;
+            }
+
+            if (!result.positionTicks && parsed.positionTicks && parsed.positionTicks > 0) {
+                result.positionTicks = parsed.positionTicks;
+            }
+
+            if (result.itemId && result.positionTicks) {
+                break;
             }
         }
 
-        return {};
+        return result;
     }
 
     window[PLUGIN_NAME] = async function () {
@@ -289,13 +408,23 @@
                 this.overlay = null;
                 this.button = null;
                 this.result = null;
+                this.debug = null;
                 this.currentRoot = null;
                 this.lastTriggerAt = 0;
+                this.isBusy = false;
+                this.settings = {
+                    showDebugInfo: false,
+                    requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS
+                };
                 this.ensureOverlay = this.ensureOverlay.bind(this);
                 this.handleTrigger = this.handleTrigger.bind(this);
                 this.runRecognition = this.runRecognition.bind(this);
 
                 this.injectStyles();
+                this.settingsPromise = withTimeout(function () {
+                    return this.loadSettings();
+                }.bind(this), 3000).catch(function () {
+                });
                 this.observer = new MutationObserver(this.ensureOverlay);
                 this.observer.observe(document.documentElement, { childList: true, subtree: true });
                 this.interval = window.setInterval(this.ensureOverlay, 1000);
@@ -331,9 +460,22 @@
                     '.auddRecognitionButton svg{width:21px;height:21px;fill:currentColor;}',
                     '.auddRecognitionResult{min-height:32px;max-width:360px;padding:7px 10px;border-radius:7px;background:rgba(20,20,20,.72);color:#fff;font-size:13px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.28);}',
                     '.auddRecognitionResult:empty{display:none;}',
+                    '.auddRecognitionDebug{min-height:24px;max-width:260px;padding:5px 8px;border-radius:7px;background:rgba(20,20,20,.55);color:rgba(255,255,255,.82);font-size:11px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+                    '.auddRecognitionDebug:empty{display:none;}',
                     '@media (max-width: 640px){.auddRecognitionOverlay{top:12px;right:12px;max-width:calc(100vw - 24px);}.auddRecognitionResult{max-width:calc(100vw - 76px);font-size:12px;}}'
                 ].join('');
                 document.head.appendChild(style);
+            }
+
+            loadSettings() {
+                if (!window.ApiClient || typeof window.ApiClient.getPluginConfiguration !== 'function') {
+                    return Promise.resolve();
+                }
+
+                return window.ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {
+                    this.settings.showDebugInfo = config.ShowOverlayDebugInfo === true || config.showOverlayDebugInfo === true;
+                }.bind(this)).catch(function () {
+                });
             }
 
             ensureOverlay() {
@@ -376,9 +518,15 @@
                 this.result.className = 'auddRecognitionResult';
                 this.result.setAttribute('aria-live', 'polite');
 
+                this.debug = document.createElement('div');
+                this.debug.className = 'auddRecognitionDebug';
+
                 this.overlay.appendChild(this.button);
                 this.overlay.appendChild(this.result);
+                this.overlay.appendChild(this.debug);
                 root.appendChild(this.overlay);
+
+                this.setBusy(this.isBusy);
             }
 
             findPlayerRoot() {
@@ -420,12 +568,15 @@
                     function () { return playbackManager && playbackManager.currentMediaSource ? playbackManager.currentMediaSource() : null; },
                     function () { return playerInfo.MediaSource || playerInfo.mediaSource; }
                 ]);
+                var videoPosition = video ? positiveNumber(video.currentTime) : null;
+                var fallbackPosition = positiveNumber(fallback.positionTicks);
                 var position = firstFunctionResult([
                     function () { return statePlayState.PositionTicks || statePlayState.positionTicks; },
                     function () { return playbackManager && playbackManager.currentTime ? playbackManager.currentTime(player) : null; },
                     function () { return playbackManager && playbackManager.getCurrentTicks ? playbackManager.getCurrentTicks() : null; },
                     function () { return playerInfo.positionTicks || playerInfo.PositionTicks; },
-                    function () { return fallback.positionTicks; },
+                    function () { return videoPosition; },
+                    function () { return fallbackPosition; },
                     function () { return video ? video.currentTime : null; }
                 ]);
 
@@ -458,6 +609,8 @@
             }
 
             setBusy(isBusy) {
+                this.isBusy = isBusy;
+
                 if (this.button) {
                     this.button.disabled = isBusy;
                 }
@@ -466,6 +619,12 @@
             setResult(text) {
                 if (this.result) {
                     this.result.textContent = text || '';
+                }
+            }
+
+            setDebug(text) {
+                if (this.debug) {
+                    this.debug.textContent = text || '';
                 }
             }
 
@@ -485,6 +644,11 @@
             handleTrigger(event) {
                 this.consumeEvent(event);
 
+                if (this.isBusy) {
+                    this.setResult('Still recognizing...');
+                    return;
+                }
+
                 var now = Date.now();
                 if (now - this.lastTriggerAt < 500) {
                     return;
@@ -496,6 +660,11 @@
 
             async runRecognition() {
                 this.setResult('Starting...');
+                this.setDebug('');
+
+                if (this.settingsPromise) {
+                    await this.settingsPromise;
+                }
 
                 var context;
                 try {
@@ -525,10 +694,14 @@
                         mediaSourceId: context.mediaSourceId,
                         positionTicks: context.positionTicks,
                         audioStreamIndex: context.audioStreamIndex
-                    });
+                    }, this.settings.requestTimeoutMs);
 
                     if (shouldCacheResponse(response)) {
                         this.cache.set(key, response);
+                    }
+
+                    if (this.settings.showDebugInfo) {
+                        this.setDebug(formatClipDebug(response));
                     }
 
                     this.setResult(getText(response));
