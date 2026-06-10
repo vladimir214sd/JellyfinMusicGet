@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>AudD Music Recognition</title>
+</head>
+<body>
+    <div id="AuddMusicRecognitionConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="AuddMusicRecognitionConfigForm">
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="AuddApiToken">AudD API token</label>
+                        <input id="AuddApiToken" name="AuddApiToken" type="password" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">Token from the AudD dashboard. It is stored in the Jellyfin plugin configuration.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PreRollSeconds">Seconds before current position</label>
+                        <input id="PreRollSeconds" name="PreRollSeconds" type="number" is="emby-input" min="0" max="60" step="1" />
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PostRollSeconds">Seconds after current position</label>
+                        <input id="PostRollSeconds" name="PostRollSeconds" type="number" is="emby-input" min="0" max="60" step="1" />
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MaxClipSeconds">Maximum clip seconds</label>
+                        <input id="MaxClipSeconds" name="MaxClipSeconds" type="number" is="emby-input" min="1" max="60" step="1" />
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ReturnMetadata">AudD return metadata</label>
+                        <input id="ReturnMetadata" name="ReturnMetadata" type="text" is="emby-input" />
+                        <div class="fieldDescription">Comma-separated AudD metadata identifiers, for example spotify,apple_music,musicbrainz.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="FfmpegPath">FFmpeg path</label>
+                        <input id="FfmpegPath" name="FfmpegPath" type="text" is="emby-input" />
+                        <div class="fieldDescription">Use ffmpeg when it is available on PATH, or set an absolute executable path.</div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableWebOverlay" name="EnableWebOverlay" type="checkbox" is="emby-checkbox" />
+                            <span>Inject player overlay into Jellyfin Web</span>
+                        </label>
+                        <div class="fieldDescription">Adds the AudD recognition button to the web player automatically. Disable only if you use a custom web client patch.</div>
+                    </div>
+
+                    <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                        <span>Save</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            var AuddMusicRecognitionConfig = {
+                pluginUniqueId: 'ad3000ca-4bcb-4b4d-a67f-b9a80cd81892'
+            };
+
+            function auddNumberValue(selector, fallback) {
+                var value = Number(document.querySelector(selector).value);
+                return Number.isFinite(value) ? value : fallback;
+            }
+
+            document.querySelector('#AuddMusicRecognitionConfigPage')
+                .addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+
+                    ApiClient.getPluginConfiguration(AuddMusicRecognitionConfig.pluginUniqueId).then(function (config) {
+                        document.querySelector('#AuddApiToken').value = config.AuddApiToken || '';
+                        document.querySelector('#PreRollSeconds').value = config.PreRollSeconds || 5;
+                        document.querySelector('#PostRollSeconds').value = config.PostRollSeconds || 8;
+                        document.querySelector('#MaxClipSeconds').value = config.MaxClipSeconds || 15;
+                        document.querySelector('#ReturnMetadata').value = config.ReturnMetadata || 'spotify,apple_music';
+                        document.querySelector('#FfmpegPath').value = config.FfmpegPath || 'ffmpeg';
+                        document.querySelector('#EnableWebOverlay').checked = config.EnableWebOverlay !== false;
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+            document.querySelector('#AuddMusicRecognitionConfigForm')
+                .addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    Dashboard.showLoadingMsg();
+
+                    ApiClient.getPluginConfiguration(AuddMusicRecognitionConfig.pluginUniqueId).then(function (config) {
+                        config.AuddApiToken = document.querySelector('#AuddApiToken').value || '';
+                        config.PreRollSeconds = auddNumberValue('#PreRollSeconds', 5);
+                        config.PostRollSeconds = auddNumberValue('#PostRollSeconds', 8);
+                        config.MaxClipSeconds = auddNumberValue('#MaxClipSeconds', 15);
+                        config.ReturnMetadata = document.querySelector('#ReturnMetadata').value || 'spotify,apple_music';
+                        config.FfmpegPath = document.querySelector('#FfmpegPath').value || 'ffmpeg';
+                        config.EnableWebOverlay = document.querySelector('#EnableWebOverlay').checked;
+
+                        ApiClient.updatePluginConfiguration(AuddMusicRecognitionConfig.pluginUniqueId, config)
+                            .then(function (result) {
+                                Dashboard.processPluginConfigurationUpdateResult(result);
+                            });
+                    });
+
+                    return false;
+                });
+        </script>
+    </div>
+</body>
+</html>
