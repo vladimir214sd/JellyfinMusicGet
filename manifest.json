@@ -8,6 +8,14 @@
     "category": "Music",
     "versions": [
       {
+        "version": "1.0.0.5",
+        "changelog": "Add main bundle FileTransformation fallback for the player overlay and improve overlay visibility.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/vladimir214sd/JellyfinMusicGet/releases/download/v1.0.0.5/audd-music-recognition_1.0.0.5.zip",
+        "checksum": "b2c17b2ed6c42a5b4962c5dda3055698",
+        "timestamp": "2026-06-10T08:25:07Z"
+      },
+      {
         "version": "1.0.0.4",
         "changelog": "Fix FileTransformation registration JObject assembly mismatch and fallback to direct web injection.",
         "targetAbi": "10.11.0.0",
