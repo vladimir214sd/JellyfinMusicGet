@@ -272,13 +272,17 @@
         return (value / 1024 / 1024).toFixed(2) + ' MB';
     }
 
-    function formatClipDebug(response) {
+    function formatClipDebug(response, context) {
         var durationTicks = readResponseValue(response, ['clipDurationTicks', 'ClipDurationTicks']);
         var sizeBytes = readResponseValue(response, ['clipSizeBytes', 'ClipSizeBytes']);
         var parts = [];
 
+        if (context && Number.isFinite(Number(context.positionTicks))) {
+            parts.push('pos ' + (Number(context.positionTicks) / TICKS_PER_SECOND).toFixed(1) + ' s');
+        }
+
         if (durationTicks !== undefined && durationTicks !== null) {
-            parts.push((Number(durationTicks) / TICKS_PER_SECOND).toFixed(1) + ' s');
+            parts.push('clip ' + (Number(durationTicks) / TICKS_PER_SECOND).toFixed(1) + ' s');
         }
 
         var sizeText = formatBytes(sizeBytes);
@@ -301,35 +305,71 @@
     }
 
     function collectPlaybackUrls(video) {
-        var urls = [];
+        var directUrls = [];
+        var resourceUrls = [];
 
         if (video) {
-            urls.push(video.currentSrc, video.src);
+            directUrls.push(video.currentSrc, video.src);
             asArray(video.querySelectorAll('source')).forEach(function (source) {
-                urls.push(source.src);
+                directUrls.push(source.src);
             });
         }
 
         asArray(document.querySelectorAll('video source, audio source')).forEach(function (source) {
-            urls.push(source.src);
+            directUrls.push(source.src);
         });
 
         try {
             asArray(window.performance && typeof window.performance.getEntriesByType === 'function'
                 ? window.performance.getEntriesByType('resource')
-                : []).forEach(function (entry) {
+                : []).filter(function (entry) {
+                return entry && entry.name && /\/(?:Videos|Audio|Items)\//i.test(entry.name);
+            }).sort(function (a, b) {
+                return (b.startTime || 0) - (a.startTime || 0);
+            }).forEach(function (entry) {
                 if (entry && entry.name) {
-                    urls.push(entry.name);
+                    resourceUrls.push(entry.name);
                 }
             });
         } catch (_) {
         }
 
-        urls.push(window.location.href);
+        directUrls.push(window.location.href);
 
-        return urls.filter(function (value, index, array) {
+        return directUrls.concat(resourceUrls).filter(function (value, index, array) {
             return value && array.indexOf(value) === index;
-        }).reverse();
+        });
+    }
+
+    function addParamsFromQuery(params, query) {
+        if (!query) {
+            return;
+        }
+
+        try {
+            var search = query.charAt(0) === '?' ? query : '?' + query;
+            var queryParams = new URLSearchParams(search);
+            queryParams.forEach(function (value, key) {
+                if (!params.has(key)) {
+                    params.set(key, value);
+                }
+            });
+        } catch (_) {
+        }
+    }
+
+    function getAllParams(parsed) {
+        var params = new URLSearchParams(parsed.search || '');
+        var hash = parsed.hash || '';
+        var hashQueryIndex = hash.indexOf('?');
+
+        if (hashQueryIndex >= 0) {
+            addParamsFromQuery(params, hash.slice(hashQueryIndex + 1));
+        } else if (hash.indexOf('=') >= 0) {
+            addParamsFromQuery(params, hash.replace(/^#/, ''));
+        }
+
+        return params;
     }
 
     function parsePlaybackUrl(url) {
@@ -341,11 +381,12 @@
 
         try {
             var parsed = new URL(url, window.location.href);
+            var params = getAllParams(parsed);
             var itemId = normalizeGuid(
-                parsed.searchParams.get('ItemId')
-                || parsed.searchParams.get('itemId')
-                || parsed.searchParams.get('Id')
-                || parsed.searchParams.get('id'));
+                params.get('ItemId')
+                || params.get('itemId')
+                || params.get('Id')
+                || params.get('id'));
 
             if (!itemId) {
                 var pathMatch = parsed.pathname.match(/\/(?:Videos|Items|Audio)\/([0-9a-f-]{32,36})(?:\/|$)/i);
@@ -356,9 +397,9 @@
                 result.itemId = itemId;
             }
 
-            result.mediaSourceId = parsed.searchParams.get('MediaSourceId') || parsed.searchParams.get('mediaSourceId') || null;
-            result.audioStreamIndex = parseNumber(parsed.searchParams.get('AudioStreamIndex') || parsed.searchParams.get('audioStreamIndex'));
-            result.positionTicks = parseNumber(parsed.searchParams.get('StartTimeTicks') || parsed.searchParams.get('startTimeTicks'));
+            result.mediaSourceId = params.get('MediaSourceId') || params.get('mediaSourceId') || null;
+            result.audioStreamIndex = parseNumber(params.get('AudioStreamIndex') || params.get('audioStreamIndex'));
+            result.positionTicks = parseNumber(params.get('StartTimeTicks') || params.get('startTimeTicks'));
         } catch (_) {
         }
 
@@ -371,6 +412,9 @@
 
         for (var i = 0; i < urls.length; i += 1) {
             var parsed = parsePlaybackUrl(urls[i]);
+            if (result.itemId && parsed.itemId && result.itemId !== parsed.itemId) {
+                continue;
+            }
 
             if (!result.itemId && parsed.itemId) {
                 result.itemId = parsed.itemId;
@@ -575,11 +619,11 @@
                 var videoPosition = video ? positiveNumber(video.currentTime) : null;
                 var fallbackPosition = positiveNumber(fallback.positionTicks);
                 var position = firstFunctionResult([
+                    function () { return videoPosition; },
                     function () { return statePlayState.PositionTicks || statePlayState.positionTicks; },
                     function () { return playbackManager && playbackManager.currentTime ? playbackManager.currentTime(player) : null; },
                     function () { return playbackManager && playbackManager.getCurrentTicks ? playbackManager.getCurrentTicks() : null; },
                     function () { return playerInfo.positionTicks || playerInfo.PositionTicks; },
-                    function () { return videoPosition; },
                     function () { return fallbackPosition; },
                     function () { return video ? video.currentTime : null; }
                 ]);
@@ -749,7 +793,7 @@
                     }
 
                     if (this.settings.showDebugInfo) {
-                        this.setDebug(formatClipDebug(response));
+                        this.setDebug(formatClipDebug(response, context));
                     }
 
                     this.setResult(getText(response));
