@@ -61,6 +61,25 @@
         return Number.isFinite(number) ? number : null;
     }
 
+    function readResponseValue(response, names) {
+        if (!response) {
+            return null;
+        }
+
+        for (var i = 0; i < names.length; i += 1) {
+            if (response[names[i]] !== undefined && response[names[i]] !== null) {
+                return response[names[i]];
+            }
+        }
+
+        return null;
+    }
+
+    function getResponseStatus(response) {
+        var status = readResponseValue(response, ['status', 'Status']);
+        return status ? String(status).toLowerCase() : '';
+    }
+
     function normalizeTicks(value, videoSeconds) {
         var number = Number(value);
 
@@ -152,11 +171,21 @@
             return 'No match';
         }
 
-        if (response.status === 'recognized') {
-            return [response.artist, response.title].filter(Boolean).join(' - ') || 'Recognized';
+        var status = getResponseStatus(response);
+        if (status === 'recognized') {
+            return [
+                readResponseValue(response, ['artist', 'Artist']),
+                readResponseValue(response, ['title', 'Title'])
+            ].filter(Boolean).join(' - ') || 'Recognized';
         }
 
-        return response.statusMessage || (response.status === 'no_match' ? 'No match' : 'Recognition failed');
+        return readResponseValue(response, ['statusMessage', 'StatusMessage'])
+            || (status === 'no_match' ? 'No match' : 'Recognition failed');
+    }
+
+    function shouldCacheResponse(response) {
+        var status = getResponseStatus(response);
+        return status === 'recognized' || status === 'no_match';
     }
 
     function getActiveVideo() {
@@ -498,7 +527,10 @@
                         audioStreamIndex: context.audioStreamIndex
                     });
 
-                    this.cache.set(key, response);
+                    if (shouldCacheResponse(response)) {
+                        this.cache.set(key, response);
+                    }
+
                     this.setResult(getText(response));
                 } catch (error) {
                     this.setResult(error && error.message ? error.message : 'Recognition failed');
