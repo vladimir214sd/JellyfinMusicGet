@@ -19,6 +19,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddSingleton<HttpClient>();
         serviceCollection.AddSingleton<IAuddClient, AuddClient>();
+        serviceCollection.AddSingleton<IShazamClient, ShazamRapidApiClient>();
         serviceCollection.AddSingleton<IAudioClipExtractor, FfmpegAudioClipExtractor>();
         serviceCollection.AddSingleton<IRecognitionService, RecognitionService>();
         serviceCollection.AddSingleton<IStartupFilter, WebOverlayStartupFilter>();
