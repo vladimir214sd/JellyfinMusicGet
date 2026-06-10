@@ -38,6 +38,31 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     public string ShazamTimeZone { get; set; } = "UTC";
 
     /// <summary>
+    /// Gets or sets the AcoustID client API key.
+    /// </summary>
+    public string AcoustIdApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the AcoustID metadata request list.
+    /// </summary>
+    public string AcoustIdMeta { get; set; } = "recordings,releasegroups,compress";
+
+    /// <summary>
+    /// Gets or sets the AcoustID lookup endpoint.
+    /// </summary>
+    public string AcoustIdEndpoint { get; set; } = "https://api.acoustid.org/v2/lookup";
+
+    /// <summary>
+    /// Gets or sets the Chromaprint fpcalc executable path.
+    /// </summary>
+    public string FpcalcPath { get; set; } = "fpcalc";
+
+    /// <summary>
+    /// Gets or sets the minimum AcoustID match score accepted as recognized.
+    /// </summary>
+    public double AcoustIdMinimumScore { get; set; } = 0.65;
+
+    /// <summary>
     /// Gets or sets how many seconds before the current playback position are included.
     /// </summary>
     public int PreRollSeconds { get; set; } = 5;
