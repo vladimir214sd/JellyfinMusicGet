@@ -53,31 +53,34 @@ public sealed class RecognitionController : ControllerBase
         [FromBody] RecognitionRequest request,
         CancellationToken cancellationToken)
     {
-        _logger.LogInformation(
-            "AudD recognition request received for item {ItemId}, media source {MediaSourceId}, playback info path supplied {HasMediaSourcePath}, position {PositionTicks}, audio stream {AudioStreamIndex}",
-            request.ItemId,
-            request.MediaSourceId,
-            !string.IsNullOrWhiteSpace(request.MediaSourcePath),
-            request.PositionTicks,
-            request.AudioStreamIndex);
-
         if (request.ItemId == Guid.Empty)
         {
-            _logger.LogWarning("AudD recognition request rejected because item id is empty.");
+            _logger.LogWarning("Music recognition request rejected because item id is empty.");
             return BadRequest(RecognitionResponse.Error("ItemId is required."));
         }
 
         var plugin = Plugin.Instance;
         if (plugin is null)
         {
-            _logger.LogWarning("AudD recognition request rejected because plugin instance is not initialized.");
+            _logger.LogWarning("Music recognition request rejected because plugin instance is not initialized.");
             return BadRequest(RecognitionResponse.Error("Plugin is not initialized."));
         }
+
+        var provider = plugin.Configuration.RecognitionProvider;
+
+        _logger.LogInformation(
+            "Music recognition request received for item {ItemId} with provider {RecognitionProvider}, media source {MediaSourceId}, playback info path supplied {HasMediaSourcePath}, position {PositionTicks}, audio stream {AudioStreamIndex}",
+            request.ItemId,
+            provider,
+            request.MediaSourceId,
+            !string.IsNullOrWhiteSpace(request.MediaSourcePath),
+            request.PositionTicks,
+            request.AudioStreamIndex);
 
         var item = _libraryManager.GetItemById(request.ItemId);
         if (item is null)
         {
-            _logger.LogWarning("AudD recognition request item was not found: {ItemId}", request.ItemId);
+            _logger.LogWarning("Music recognition request item was not found: {ItemId}", request.ItemId);
             return NotFound();
         }
 
@@ -88,8 +91,9 @@ public sealed class RecognitionController : ControllerBase
             cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
-            "AudD recognition completed for item {ItemId} with status {Status}: {StatusMessage}",
+            "Music recognition completed for item {ItemId} with provider {RecognitionProvider}, status {Status}: {StatusMessage}",
             request.ItemId,
+            provider,
             result.Status,
             result.StatusMessage);
 
