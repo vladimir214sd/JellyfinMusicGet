@@ -5,78 +5,14 @@
     <title>AudD Music Recognition</title>
 </head>
 <body>
-    <div id="AuddMusicRecognitionConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
+    <div id="AuddMusicRecognitionConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
         <div data-role="content">
             <div class="content-primary">
                 <form id="AuddMusicRecognitionConfigForm">
-                    <div class="selectContainer">
-                        <label class="selectLabel" for="RecognitionProvider">Recognition provider</label>
-                        <select id="RecognitionProvider" name="RecognitionProvider" is="emby-select">
-                            <option value="AudD">AudD</option>
-                            <option value="ShazamRapidApi">Shazam (RapidAPI)</option>
-                            <option value="AcoustId">AcoustID</option>
-                        </select>
-                        <div class="fieldDescription">Choose which provider receives the extracted clip or its fingerprint.</div>
-                    </div>
-
-                    <div class="inputContainer auddProviderField">
+                    <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="AuddApiToken">AudD API token</label>
                         <input id="AuddApiToken" name="AuddApiToken" type="password" is="emby-input" autocomplete="off" />
                         <div class="fieldDescription">Token from the AudD dashboard. It is stored in the Jellyfin plugin configuration.</div>
-                    </div>
-
-                    <div class="inputContainer shazamProviderField">
-                        <label class="inputLabel inputLabelUnfocused" for="ShazamRapidApiKey">Shazam RapidAPI key</label>
-                        <input id="ShazamRapidApiKey" name="ShazamRapidApiKey" type="password" is="emby-input" autocomplete="off" />
-                        <div class="fieldDescription">RapidAPI key for the apidojo Shazam API.</div>
-                    </div>
-
-                    <div class="inputContainer shazamProviderField">
-                        <label class="inputLabel inputLabelUnfocused" for="ShazamRapidApiHost">Shazam RapidAPI host</label>
-                        <input id="ShazamRapidApiHost" name="ShazamRapidApiHost" type="text" is="emby-input" />
-                        <div class="fieldDescription">Default: shazam.p.rapidapi.com.</div>
-                    </div>
-
-                    <div class="inputContainer shazamProviderField">
-                        <label class="inputLabel inputLabelUnfocused" for="ShazamLocale">Shazam locale</label>
-                        <input id="ShazamLocale" name="ShazamLocale" type="text" is="emby-input" />
-                        <div class="fieldDescription">Default: en-US.</div>
-                    </div>
-
-                    <div class="inputContainer shazamProviderField">
-                        <label class="inputLabel inputLabelUnfocused" for="ShazamTimeZone">Shazam timezone</label>
-                        <input id="ShazamTimeZone" name="ShazamTimeZone" type="text" is="emby-input" />
-                        <div class="fieldDescription">Default: UTC. Example: Europe/Moscow.</div>
-                    </div>
-
-                    <div class="inputContainer acoustIdProviderField">
-                        <label class="inputLabel inputLabelUnfocused" for="AcoustIdApiKey">AcoustID API key</label>
-                        <input id="AcoustIdApiKey" name="AcoustIdApiKey" type="password" is="emby-input" autocomplete="off" />
-                        <div class="fieldDescription">AcoustID client key from https://acoustid.org/api-key.</div>
-                    </div>
-
-                    <div class="inputContainer acoustIdProviderField">
-                        <label class="inputLabel inputLabelUnfocused" for="FpcalcPath">Chromaprint fpcalc path</label>
-                        <input id="FpcalcPath" name="FpcalcPath" type="text" is="emby-input" />
-                        <div class="fieldDescription">Use fpcalc when Chromaprint is available on PATH, or set an absolute executable path.</div>
-                    </div>
-
-                    <div class="inputContainer acoustIdProviderField">
-                        <label class="inputLabel inputLabelUnfocused" for="AcoustIdMinimumScore">AcoustID minimum score</label>
-                        <input id="AcoustIdMinimumScore" name="AcoustIdMinimumScore" type="number" is="emby-input" min="0" max="1" step="0.01" />
-                        <div class="fieldDescription">Default: 0.65. Lower values may produce false matches.</div>
-                    </div>
-
-                    <div class="inputContainer acoustIdProviderField">
-                        <label class="inputLabel inputLabelUnfocused" for="AcoustIdMeta">AcoustID metadata</label>
-                        <input id="AcoustIdMeta" name="AcoustIdMeta" type="text" is="emby-input" />
-                        <div class="fieldDescription">Default: recordings releasegroups compress.</div>
-                    </div>
-
-                    <div class="inputContainer acoustIdProviderField">
-                        <label class="inputLabel inputLabelUnfocused" for="AcoustIdEndpoint">AcoustID endpoint</label>
-                        <input id="AcoustIdEndpoint" name="AcoustIdEndpoint" type="text" is="emby-input" />
-                        <div class="fieldDescription">Default: https://api.acoustid.org/v2/lookup.</div>
                     </div>
 
                     <div class="inputContainer">
@@ -94,7 +30,7 @@
                         <input id="MaxClipSeconds" name="MaxClipSeconds" type="number" is="emby-input" min="1" max="60" step="1" />
                     </div>
 
-                    <div class="inputContainer auddProviderField">
+                    <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="ReturnMetadata">AudD return metadata</label>
                         <input id="ReturnMetadata" name="ReturnMetadata" type="text" is="emby-input" />
                         <div class="fieldDescription">Comma-separated AudD metadata identifiers, for example spotify,apple_music,musicbrainz.</div>
@@ -139,47 +75,12 @@
                 return Number.isFinite(value) ? value : fallback;
             }
 
-            function auddUpdateProviderFields() {
-                var provider = document.querySelector('#RecognitionProvider').value || 'AudD';
-                var isShazam = provider === 'ShazamRapidApi' || provider === 'Shazam';
-                var isAcoustId = provider === 'AcoustId' || provider === 'AcoustID';
-
-                document.querySelectorAll('.auddProviderField').forEach(function (field) {
-                    field.style.display = isShazam || isAcoustId ? 'none' : '';
-                });
-
-                document.querySelectorAll('.shazamProviderField').forEach(function (field) {
-                    field.style.display = isShazam ? '' : 'none';
-                });
-
-                document.querySelectorAll('.acoustIdProviderField').forEach(function (field) {
-                    field.style.display = isAcoustId ? '' : 'none';
-                });
-            }
-
-            document.querySelector('#RecognitionProvider')
-                .addEventListener('change', auddUpdateProviderFields);
-            auddUpdateProviderFields();
-
             document.querySelector('#AuddMusicRecognitionConfigPage')
                 .addEventListener('pageshow', function () {
                     Dashboard.showLoadingMsg();
 
                     ApiClient.getPluginConfiguration(AuddMusicRecognitionConfig.pluginUniqueId).then(function (config) {
-                        var provider = config.RecognitionProvider === 'Shazam'
-                            ? 'ShazamRapidApi'
-                            : (config.RecognitionProvider === 'AcoustID' ? 'AcoustId' : (config.RecognitionProvider || 'AudD'));
-                        document.querySelector('#RecognitionProvider').value = provider;
                         document.querySelector('#AuddApiToken').value = config.AuddApiToken || '';
-                        document.querySelector('#ShazamRapidApiKey').value = config.ShazamRapidApiKey || '';
-                        document.querySelector('#ShazamRapidApiHost').value = config.ShazamRapidApiHost || 'shazam.p.rapidapi.com';
-                        document.querySelector('#ShazamLocale').value = config.ShazamLocale || 'en-US';
-                        document.querySelector('#ShazamTimeZone').value = config.ShazamTimeZone || 'UTC';
-                        document.querySelector('#AcoustIdApiKey').value = config.AcoustIdApiKey || '';
-                        document.querySelector('#FpcalcPath').value = config.FpcalcPath || 'fpcalc';
-                        document.querySelector('#AcoustIdMinimumScore').value = config.AcoustIdMinimumScore === undefined || config.AcoustIdMinimumScore === null ? 0.65 : config.AcoustIdMinimumScore;
-                        document.querySelector('#AcoustIdMeta').value = config.AcoustIdMeta || 'recordings releasegroups compress';
-                        document.querySelector('#AcoustIdEndpoint').value = config.AcoustIdEndpoint || 'https://api.acoustid.org/v2/lookup';
                         document.querySelector('#PreRollSeconds').value = config.PreRollSeconds || 5;
                         document.querySelector('#PostRollSeconds').value = config.PostRollSeconds || 8;
                         document.querySelector('#MaxClipSeconds').value = config.MaxClipSeconds || 15;
@@ -187,7 +88,6 @@
                         document.querySelector('#FfmpegPath').value = config.FfmpegPath || 'ffmpeg';
                         document.querySelector('#EnableWebOverlay').checked = config.EnableWebOverlay !== false;
                         document.querySelector('#ShowOverlayDebugInfo').checked = config.ShowOverlayDebugInfo === true;
-                        auddUpdateProviderFields();
                         Dashboard.hideLoadingMsg();
                     });
                 });
@@ -198,17 +98,7 @@
                     Dashboard.showLoadingMsg();
 
                     ApiClient.getPluginConfiguration(AuddMusicRecognitionConfig.pluginUniqueId).then(function (config) {
-                        config.RecognitionProvider = document.querySelector('#RecognitionProvider').value || 'AudD';
                         config.AuddApiToken = document.querySelector('#AuddApiToken').value || '';
-                        config.ShazamRapidApiKey = document.querySelector('#ShazamRapidApiKey').value || '';
-                        config.ShazamRapidApiHost = document.querySelector('#ShazamRapidApiHost').value || 'shazam.p.rapidapi.com';
-                        config.ShazamLocale = document.querySelector('#ShazamLocale').value || 'en-US';
-                        config.ShazamTimeZone = document.querySelector('#ShazamTimeZone').value || 'UTC';
-                        config.AcoustIdApiKey = document.querySelector('#AcoustIdApiKey').value || '';
-                        config.FpcalcPath = document.querySelector('#FpcalcPath').value || 'fpcalc';
-                        config.AcoustIdMinimumScore = auddNumberValue('#AcoustIdMinimumScore', 0.65);
-                        config.AcoustIdMeta = document.querySelector('#AcoustIdMeta').value || 'recordings releasegroups compress';
-                        config.AcoustIdEndpoint = document.querySelector('#AcoustIdEndpoint').value || 'https://api.acoustid.org/v2/lookup';
                         config.PreRollSeconds = auddNumberValue('#PreRollSeconds', 5);
                         config.PostRollSeconds = auddNumberValue('#PostRollSeconds', 8);
                         config.MaxClipSeconds = auddNumberValue('#MaxClipSeconds', 15);
