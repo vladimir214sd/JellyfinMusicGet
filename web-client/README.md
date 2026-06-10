@@ -30,4 +30,4 @@ It is injected into Jellyfin Web by `WebOverlayInjectionMiddleware` with a uniqu
 
 ## Providers
 
-The server plugin can recognize clips with AudD or Shazam through RapidAPI. The active provider and API keys are configured from the plugin settings page.
+The server plugin can recognize clips with AudD, Shazam through RapidAPI, or AcoustID. The active provider and API keys are configured from the plugin settings page.
