@@ -76,39 +76,30 @@ public sealed class RecognitionService : IRecognitionService
 
         try
         {
-            _logger.LogInformation(
-                "Extracting music recognition clip for item {ItemId} from {SourcePath} at {StartSeconds}s for {DurationSeconds}s using audio stream {AudioStreamIndex}",
-                item.Id,
-                sourcePath,
-                clipWindow.StartSeconds,
-                clipWindow.DurationSeconds,
-                request.AudioStreamIndex);
-
-            await using var clip = await _audioClipExtractor.ExtractAsync(
+            var response = await RecognizeClipAsync(
+                item,
                 sourcePath,
                 clipWindow,
                 request.AudioStreamIndex,
-                configuration.FfmpegPath,
+                configuration,
                 cancellationToken).ConfigureAwait(false);
 
-            var clipSizeBytes = new FileInfo(clip.Path).Length;
+            if (string.Equals(response.Status, "no_match", StringComparison.OrdinalIgnoreCase)
+                && request.AudioStreamIndex.HasValue)
+            {
+                _logger.LogInformation(
+                    "AudD found no match for item {ItemId} using audio stream {AudioStreamIndex}; retrying with the first audio stream",
+                    item.Id,
+                    request.AudioStreamIndex);
 
-            _logger.LogInformation(
-                "Submitting AudD clip {ClipPath} for item {ItemId}; duration {DurationSeconds}s, size {ClipSizeBytes} bytes",
-                clip.Path,
-                item.Id,
-                clipWindow.DurationSeconds,
-                clipSizeBytes);
-
-            var response = await _auddClient.RecognizeAsync(
-                clip.Path,
-                configuration.AuddApiToken,
-                configuration.ReturnMetadata,
-                cancellationToken).ConfigureAwait(false);
-
-            response.ClipStartTicks = clipWindow.StartTicks;
-            response.ClipDurationTicks = clipWindow.DurationTicks;
-            response.ClipSizeBytes = clipSizeBytes;
+                response = await RecognizeClipAsync(
+                    item,
+                    sourcePath,
+                    clipWindow,
+                    null,
+                    configuration,
+                    cancellationToken).ConfigureAwait(false);
+            }
 
             return response;
         }
@@ -126,6 +117,51 @@ public sealed class RecognitionService : IRecognitionService
         }
     }
 
+    private async Task<RecognitionResponse> RecognizeClipAsync(
+        BaseItem item,
+        string sourcePath,
+        ClipWindow clipWindow,
+        int? audioStreamIndex,
+        PluginConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Extracting music recognition clip for item {ItemId} from {SourcePath} at {StartSeconds}s for {DurationSeconds}s using audio stream {AudioStreamIndex}",
+            item.Id,
+            sourcePath,
+            clipWindow.StartSeconds,
+            clipWindow.DurationSeconds,
+            audioStreamIndex);
+
+        await using var clip = await _audioClipExtractor.ExtractAsync(
+            sourcePath,
+            clipWindow,
+            audioStreamIndex,
+            configuration.FfmpegPath,
+            cancellationToken).ConfigureAwait(false);
+
+        var clipSizeBytes = new FileInfo(clip.Path).Length;
+
+        _logger.LogInformation(
+            "Submitting AudD clip {ClipPath} for item {ItemId}; duration {DurationSeconds}s, size {ClipSizeBytes} bytes",
+            clip.Path,
+            item.Id,
+            clipWindow.DurationSeconds,
+            clipSizeBytes);
+
+        var response = await _auddClient.RecognizeAsync(
+            clip.Path,
+            configuration.AuddApiToken,
+            configuration.ReturnMetadata,
+            cancellationToken).ConfigureAwait(false);
+
+        response.ClipStartTicks = clipWindow.StartTicks;
+        response.ClipDurationTicks = clipWindow.DurationTicks;
+        response.ClipSizeBytes = clipSizeBytes;
+
+        return response;
+    }
+
     private async Task<string?> ResolveLocalMediaPathAsync(BaseItem item, RecognitionRequest request, CancellationToken cancellationToken)
     {
         var mediaSourceId = request.MediaSourceId;
@@ -141,7 +177,6 @@ public sealed class RecognitionService : IRecognitionService
         }
 
         AddMediaSourceCandidates(candidates, GetStaticMediaSources(item));
-        AddCandidate(candidates, mediaSourceId, request.MediaSourcePath);
 
         foreach (var lookupMediaSourceId in GetMediaSourceLookupIds(item, mediaSourceId, candidates).ToList())
         {
@@ -158,6 +193,19 @@ public sealed class RecognitionService : IRecognitionService
         var sourcePath = selected ?? candidates
             .Select(candidate => candidate.Path)
             .FirstOrDefault(IsReadableLocalFile);
+
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            var requestPath = NormalizeLocalPath(request.MediaSourcePath);
+            if (IsReadableLocalFile(requestPath))
+            {
+                sourcePath = requestPath;
+                _logger.LogDebug(
+                    "Using client-supplied media path as a final fallback for item {ItemId}: {SourcePath}",
+                    item.Id,
+                    sourcePath);
+            }
+        }
 
         if (string.IsNullOrWhiteSpace(sourcePath))
         {
