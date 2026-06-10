@@ -233,6 +233,36 @@
         });
     }
 
+    function copyTextToClipboard(text) {
+        if (!text) {
+            return Promise.resolve(false);
+        }
+
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            return navigator.clipboard.writeText(text).then(function () {
+                return true;
+            }).catch(function () {
+                return false;
+            });
+        }
+
+        try {
+            var input = document.createElement('textarea');
+            input.value = text;
+            input.setAttribute('readonly', 'readonly');
+            input.style.position = 'fixed';
+            input.style.left = '-9999px';
+            input.style.top = '0';
+            document.body.appendChild(input);
+            input.select();
+            var copied = document.execCommand('copy');
+            input.remove();
+            return Promise.resolve(copied);
+        } catch (_) {
+            return Promise.resolve(false);
+        }
+    }
+
     function getText(response) {
         if (!response) {
             return 'No match';
@@ -464,6 +494,7 @@
                 };
                 this.ensureOverlay = this.ensureOverlay.bind(this);
                 this.handleTrigger = this.handleTrigger.bind(this);
+                this.handleCopyText = this.handleCopyText.bind(this);
                 this.runRecognition = this.runRecognition.bind(this);
 
                 this.injectStyles();
@@ -504,9 +535,9 @@
                     '.auddRecognitionButton{width:40px;height:40px;border:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(20,20,20,.72);color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.28);cursor:pointer;touch-action:manipulation;}',
                     '.auddRecognitionButton:disabled{opacity:.62;cursor:default;}',
                     '.auddRecognitionButton svg{width:21px;height:21px;fill:currentColor;}',
-                    '.auddRecognitionResult{min-height:32px;max-width:360px;padding:7px 10px;border-radius:7px;background:rgba(20,20,20,.72);color:#fff;font-size:13px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.28);}',
+                    '.auddRecognitionResult{min-height:32px;max-width:360px;padding:7px 10px;border-radius:7px;background:rgba(20,20,20,.72);color:#fff;font-size:13px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.28);cursor:text;user-select:text;-webkit-user-select:text;}',
                     '.auddRecognitionResult:empty{display:none;}',
-                    '.auddRecognitionDebug{min-height:24px;max-width:260px;padding:5px 8px;border-radius:7px;background:rgba(20,20,20,.55);color:rgba(255,255,255,.82);font-size:11px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+                    '.auddRecognitionDebug{min-height:24px;max-width:260px;padding:5px 8px;border-radius:7px;background:rgba(20,20,20,.55);color:rgba(255,255,255,.82);font-size:11px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text;user-select:text;-webkit-user-select:text;}',
                     '.auddRecognitionDebug:empty{display:none;}',
                     '@media (max-width: 640px){.auddRecognitionOverlay{top:12px;right:12px;max-width:calc(100vw - 24px);}.auddRecognitionResult{max-width:calc(100vw - 76px);font-size:12px;}}'
                 ].join('');
@@ -564,9 +595,13 @@
                 this.result = document.createElement('div');
                 this.result.className = 'auddRecognitionResult';
                 this.result.setAttribute('aria-live', 'polite');
+                this.result.title = 'Double-click to copy';
+                this.result.addEventListener('dblclick', this.handleCopyText, true);
 
                 this.debug = document.createElement('div');
                 this.debug.className = 'auddRecognitionDebug';
+                this.debug.title = 'Double-click to copy';
+                this.debug.addEventListener('dblclick', this.handleCopyText, true);
 
                 this.overlay.appendChild(this.button);
                 this.overlay.appendChild(this.result);
@@ -739,6 +774,27 @@
 
                 this.lastTriggerAt = now;
                 this.runRecognition();
+            }
+
+            handleCopyText(event) {
+                this.consumeEvent(event);
+
+                var target = event && event.currentTarget;
+                var text = target && target.textContent ? target.textContent.trim() : '';
+                if (!text) {
+                    return;
+                }
+
+                copyTextToClipboard(text).then(function (copied) {
+                    if (copied && target) {
+                        target.title = 'Copied';
+                        window.setTimeout(function () {
+                            if (target) {
+                                target.title = 'Double-click to copy';
+                            }
+                        }, 1200);
+                    }
+                });
             }
 
             async runRecognition() {
