@@ -114,6 +114,10 @@ function Should-PublishFile {
         return $false
     }
 
+    if ($relative -eq "manifest.json") {
+        return $false
+    }
+
     if ($relative -match '(^|/)(bin|obj|node_modules|TestResults|coverage|\.git|\.vs|\.idea)(/|$)') {
         return $false
     }
