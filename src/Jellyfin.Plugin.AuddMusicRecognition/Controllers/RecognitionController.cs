@@ -54,9 +54,10 @@ public sealed class RecognitionController : ControllerBase
         CancellationToken cancellationToken)
     {
         _logger.LogInformation(
-            "AudD recognition request received for item {ItemId}, media source {MediaSourceId}, position {PositionTicks}, audio stream {AudioStreamIndex}",
+            "AudD recognition request received for item {ItemId}, media source {MediaSourceId}, playback info path supplied {HasMediaSourcePath}, position {PositionTicks}, audio stream {AudioStreamIndex}",
             request.ItemId,
             request.MediaSourceId,
+            !string.IsNullOrWhiteSpace(request.MediaSourcePath),
             request.PositionTicks,
             request.AudioStreamIndex);
 
