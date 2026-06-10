@@ -22,7 +22,7 @@ Copy the publish output into a Jellyfin plugin folder, restart Jellyfin, then op
 
 ## Jellyfin Web Overlay
 
-The server plugin automatically injects the player overlay into Jellyfin Web HTML responses when `EnableWebOverlay` is enabled in plugin settings. The injected script is served from:
+The server plugin automatically injects the player overlay into Jellyfin Web when `EnableWebOverlay` is enabled in plugin settings. It registers FileTransformation callbacks for both `index.html` and `main.jellyfin.bundle.js`, so the overlay can still load when Jellyfin Web or the browser caches the HTML entrypoint. The standalone script is also served from:
 
 ```text
 /Plugins/AuddMusicRecognition/Web/audd-music-recognition.plugin.js
