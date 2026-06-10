@@ -50,6 +50,14 @@
                         <div class="fieldDescription">Adds the AudD recognition button to the web player automatically. Disable only if you use a custom web client patch.</div>
                     </div>
 
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="ShowOverlayDebugInfo" name="ShowOverlayDebugInfo" type="checkbox" is="emby-checkbox" />
+                            <span>Show sent clip test data in player overlay</span>
+                        </label>
+                        <div class="fieldDescription">Shows the extracted audio clip duration and file size next to the recognition button after a request.</div>
+                    </div>
+
                     <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                         <span>Save</span>
                     </button>
@@ -79,6 +87,7 @@
                         document.querySelector('#ReturnMetadata').value = config.ReturnMetadata || 'spotify,apple_music';
                         document.querySelector('#FfmpegPath').value = config.FfmpegPath || 'ffmpeg';
                         document.querySelector('#EnableWebOverlay').checked = config.EnableWebOverlay !== false;
+                        document.querySelector('#ShowOverlayDebugInfo').checked = config.ShowOverlayDebugInfo === true;
                         Dashboard.hideLoadingMsg();
                     });
                 });
@@ -96,6 +105,7 @@
                         config.ReturnMetadata = document.querySelector('#ReturnMetadata').value || 'spotify,apple_music';
                         config.FfmpegPath = document.querySelector('#FfmpegPath').value || 'ffmpeg';
                         config.EnableWebOverlay = document.querySelector('#EnableWebOverlay').checked;
+                        config.ShowOverlayDebugInfo = document.querySelector('#ShowOverlayDebugInfo').checked;
 
                         ApiClient.updatePluginConfiguration(AuddMusicRecognitionConfig.pluginUniqueId, config)
                             .then(function (result) {
