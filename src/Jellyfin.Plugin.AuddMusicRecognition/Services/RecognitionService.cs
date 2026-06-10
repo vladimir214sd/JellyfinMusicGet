@@ -75,7 +75,14 @@ public sealed class RecognitionService : IRecognitionService
                 configuration.FfmpegPath,
                 cancellationToken).ConfigureAwait(false);
 
-            _logger.LogInformation("Submitting AudD clip {ClipPath} for item {ItemId}", clip.Path, item.Id);
+            var clipSizeBytes = new FileInfo(clip.Path).Length;
+
+            _logger.LogInformation(
+                "Submitting AudD clip {ClipPath} for item {ItemId}; duration {DurationSeconds}s, size {ClipSizeBytes} bytes",
+                clip.Path,
+                item.Id,
+                clipWindow.DurationSeconds,
+                clipSizeBytes);
 
             var response = await _auddClient.RecognizeAsync(
                 clip.Path,
@@ -85,6 +92,7 @@ public sealed class RecognitionService : IRecognitionService
 
             response.ClipStartTicks = clipWindow.StartTicks;
             response.ClipDurationTicks = clipWindow.DurationTicks;
+            response.ClipSizeBytes = clipSizeBytes;
 
             return response;
         }
