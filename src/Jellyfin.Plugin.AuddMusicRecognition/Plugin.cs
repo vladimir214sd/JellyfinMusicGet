@@ -4,8 +4,10 @@ using System.Globalization;
 using Jellyfin.Plugin.AuddMusicRecognition.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
+using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AuddMusicRecognition;
 
@@ -19,10 +21,17 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// </summary>
     /// <param name="applicationPaths">Application paths.</param>
     /// <param name="xmlSerializer">XML serializer.</param>
-    public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
+    public Plugin(
+        IApplicationPaths applicationPaths,
+        IXmlSerializer xmlSerializer,
+        ILogger<Plugin> logger,
+        IServerConfigurationManager serverConfigurationManager)
         : base(applicationPaths, xmlSerializer)
     {
         Instance = this;
+        ApplicationPaths = applicationPaths;
+        Logger = logger;
+        ServerConfigurationManager = serverConfigurationManager;
     }
 
     /// <inheritdoc />
@@ -35,6 +44,21 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// Gets the current plugin instance.
     /// </summary>
     public static Plugin? Instance { get; private set; }
+
+    /// <summary>
+    /// Gets application paths exposed by Jellyfin.
+    /// </summary>
+    internal IApplicationPaths ApplicationPaths { get; }
+
+    /// <summary>
+    /// Gets the plugin logger.
+    /// </summary>
+    internal ILogger<Plugin> Logger { get; }
+
+    /// <summary>
+    /// Gets Jellyfin server configuration manager.
+    /// </summary>
+    internal IServerConfigurationManager ServerConfigurationManager { get; }
 
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()
