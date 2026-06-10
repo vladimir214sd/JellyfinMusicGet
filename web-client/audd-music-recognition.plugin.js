@@ -3,6 +3,7 @@
 
     var TICKS_PER_SECOND = 10000000;
     var PLUGIN_NAME = 'AuddMusicRecognitionPlugin';
+    window.__auddMusicRecognitionOverlayLoaded = true;
 
     function firstFunctionResult(candidates) {
         for (var i = 0; i < candidates.length; i += 1) {
@@ -110,6 +111,17 @@
         return response.statusMessage || (response.status === 'no_match' ? 'No match' : 'Recognition failed');
     }
 
+    function getActiveVideo() {
+        var videos = document.querySelectorAll('video');
+        for (var i = 0; i < videos.length; i += 1) {
+            if (videos[i].getClientRects().length > 0) {
+                return videos[i];
+            }
+        }
+
+        return videos.length ? videos[0] : null;
+    }
+
     window[PLUGIN_NAME] = async function () {
         return class AuddMusicRecognitionPlugin {
             constructor(dependencies) {
@@ -156,7 +168,7 @@
                 var style = document.createElement('style');
                 style.id = 'auddMusicRecognitionStyles';
                 style.textContent = [
-                    '.auddRecognitionOverlay{position:absolute;top:calc(env(safe-area-inset-top,0px) + 16px);right:calc(env(safe-area-inset-right,0px) + 16px);z-index:1200;display:flex;align-items:center;gap:8px;max-width:min(420px,calc(100vw - 32px));pointer-events:auto;font-family:inherit;}',
+                    '.auddRecognitionOverlay{position:fixed;top:calc(env(safe-area-inset-top,0px) + 16px);right:calc(env(safe-area-inset-right,0px) + 16px);z-index:99999;display:flex;align-items:center;gap:8px;max-width:min(420px,calc(100vw - 32px));pointer-events:auto;font-family:inherit;}',
                     '.auddRecognitionButton{width:40px;height:40px;border:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(20,20,20,.72);color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.28);cursor:pointer;}',
                     '.auddRecognitionButton:disabled{opacity:.62;cursor:default;}',
                     '.auddRecognitionButton svg{width:21px;height:21px;fill:currentColor;}',
@@ -168,9 +180,9 @@
             }
 
             ensureOverlay() {
-                var root = this.findPlayerRoot();
+                var playerRoot = this.findPlayerRoot();
 
-                if (!root) {
+                if (!playerRoot) {
                     if (this.overlay) {
                         this.overlay.remove();
                         this.overlay = null;
@@ -180,6 +192,7 @@
                     return;
                 }
 
+                var root = document.body;
                 if (this.overlay && this.currentRoot === root && root.contains(this.overlay)) {
                     return;
                 }
@@ -189,11 +202,6 @@
                 }
 
                 this.currentRoot = root;
-
-                var computedStyle = window.getComputedStyle(root);
-                if (computedStyle.position === 'static') {
-                    root.style.position = 'relative';
-                }
 
                 this.overlay = document.createElement('div');
                 this.overlay.className = 'auddRecognitionOverlay';
@@ -216,7 +224,7 @@
             }
 
             findPlayerRoot() {
-                var video = document.querySelector('video');
+                var video = getActiveVideo();
                 if (!video) {
                     return null;
                 }
@@ -245,7 +253,7 @@
                     function () { return playerInfo.item || playerInfo.Item || playerInfo.currentItem || playerInfo.CurrentItem; }
                 ]) || {};
 
-                var video = document.querySelector('video');
+                var video = getActiveVideo();
                 var position = firstFunctionResult([
                     function () { return playbackManager && playbackManager.currentTime ? playbackManager.currentTime(player) : null; },
                     function () { return playbackManager && playbackManager.getCurrentTicks ? playbackManager.getCurrentTicks() : null; },
