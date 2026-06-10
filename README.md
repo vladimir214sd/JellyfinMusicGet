@@ -1,6 +1,6 @@
 # Jellyfin Music Recognition
 
-Jellyfin server plugin plus a small Jellyfin Web runtime module for recognizing music playing inside videos. The server plugin extracts a short audio clip around the current playback position, sends the clip or its fingerprint to the selected recognition provider, and returns normalized track metadata to the web overlay.
+Jellyfin server plugin plus a small Jellyfin Web runtime module for recognizing music playing inside videos. The server plugin extracts a short audio clip around the current playback position, sends it to AudD, and returns normalized track metadata to the web overlay.
 
 ## Repository Layout
 
@@ -18,11 +18,7 @@ dotnet test .\tests\Jellyfin.Plugin.AuddMusicRecognition.Tests\Jellyfin.Plugin.A
 dotnet publish .\src\Jellyfin.Plugin.AuddMusicRecognition\Jellyfin.Plugin.AuddMusicRecognition.csproj -c Release
 ```
 
-Copy the publish output into a Jellyfin plugin folder, restart Jellyfin, then open the plugin settings page and choose a provider:
-
-- AudD: set the AudD API token.
-- Shazam (RapidAPI): set the RapidAPI key for `shazam.p.rapidapi.com`.
-- AcoustID: set the AcoustID API key and make sure Chromaprint `fpcalc` is available to the Jellyfin server process.
+Copy the publish output into a Jellyfin plugin folder, restart Jellyfin, then open the plugin settings page and set the AudD API token.
 
 ## Jellyfin Web Overlay
 
@@ -55,8 +51,7 @@ Replace `OWNER/REPO` with your GitHub repository path after you upload the code.
 
 - The endpoint is `POST /Plugins/AuddMusicRecognition/Recognize`.
 - Recognition is manual only in v1: the overlay button triggers the request.
-- Providers supported in settings: AudD, Shazam through RapidAPI, and AcoustID.
+- Music recognition uses AudD.
 - The default clip window is 5 seconds before and 8 seconds after the current position, capped by `MaxClipSeconds`.
 - FFmpeg must be available to the Jellyfin server process. Set `FfmpegPath` in plugin settings if it is not on PATH.
-- AcoustID also requires Chromaprint `fpcalc`. Set `FpcalcPath` in plugin settings if it is not on PATH.
 - Jellyfin's plugin manifest installs the server plugin. The server plugin injects the web player overlay automatically for standard Jellyfin Web clients.
